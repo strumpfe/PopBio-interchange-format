@@ -111,11 +111,11 @@ while (my $line = <$data>) {
 		## Sample size must be an integer (warn if zero?)
 		##
 		if ( $f[16] eq "" ) {
-			print OUTPUT "// ERROR: Collected sample size is absent $f[20] in line $rows \n";
+			print OUTPUT "// ERROR: Collected sample size is absent (Species $f[12]) in line $rows \n";
 			$errors++;
 		}
 		elsif ( $f[16] == 0 ) {
-			print OUTPUT "// WARNING: Collected sample size is zero $f[20] in line $rows \n";
+			print OUTPUT "// WARNING: Collected sample size is zero (Species: $f[12]) in line $rows \n";
 			$warnings++;
 		}
 
