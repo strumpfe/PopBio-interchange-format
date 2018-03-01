@@ -15,6 +15,8 @@ my $verbose;
 my $file;
 my $help;
 my $summary;
+my %species;		# Hash of species present in interchange file
+
 my $rows;			# Count of rows in file
 my $errors;  		# Number of errors found in file
 my $warnings;		# Count of warnings
@@ -119,6 +121,12 @@ while (my $line = <$data>) {
 			$warnings++;
 		}
 
+		##
+		## Summary information
+		##
+		if ( $summary ) {
+			$species{$f[12]}++;
+		}
 
 
 		# Increment valid data row count
@@ -153,6 +161,28 @@ if ( $verbose ) {
 	while (<ERROR>) {
 		print;
 	}
+}
+
+
+##
+## Summary of all species
+##
+
+if ( $summary ) {
+
+	print "// No. species present in $file : " . (keys %species) . "\n";
+
+	foreach my $i (sort keys %species) {
+		next if ($i eq "BLANK");
+		printf ("%-32s %4d\n", $i,$species{$i});
+	}
+
+	if ( $species{BLANK} ) {
+		print "\nBLANK (no mosquitoes collected)   $species{BLANK}\n";
+	}
+
+
+
 }
 
 
