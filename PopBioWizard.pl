@@ -158,12 +158,10 @@ if ( $add_zeros ) {
 		# Make a new sample for confirmed absences
 		print "// Need to add confirmed absence for collection $i, " . ($max_species_num - $number_spp ) . "\n" if ( $verbose );
 
-
 		print "// Collection $i ($number_spp) :: [" . (join ', ', @missing) . "]\n" if ( $verbose );
 		$max_sample_id++;
-		my $new_sample_id = $meta{Sample_nomenclature} . "_";
-		if ( $max_sample_id < 1000 ) { $new_sample_id .= "0"; }
-		$new_sample_id .= ${max_sample_id};
+
+		my $new_sample_id = sprintf ("$meta{Sample_nomenclature}_%.4d", $max_sample_id);
 		print "// Create new sample \"$new_sample_id\" for collection $i\n\n" if ( $verbose );
 
 		# Collection IDs
