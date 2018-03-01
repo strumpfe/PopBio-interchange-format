@@ -144,6 +144,17 @@ if ( $add_zeros ) {
 		# If true then we don't need to make a new sample for the collection to store confirmed absences
 		next if ($number_spp == $max_species_num);
 
+		# Discard if this is already a blank entry (no mosquitoes collected)
+		if ( $distinct[0] eq "BLANK") {
+			print "// Not making a zero entry as this is a BLANK collection $i\n\n" if ( $verbose );
+			next;
+		}
+
+		if ( ($missing[0] =~ /genus/ ) or ($missing[0] eq "Culicidae") ) {
+			print "// Not making a zero entry as missing species is a generic term $i\n\n" if ( $verbose );
+			next;
+		}
+
 		# Make a new sample for confirmed absences
 		print "// Need to add confirmed absence for collection $i, " . ($max_species_num - $number_spp ) . "\n" if ( $verbose );
 
@@ -175,11 +186,13 @@ if ( $add_zeros ) {
 		$ISA{$new_sample_id}{SamQuantity}     = 0;   # No. of animals collected
 		foreach my $j (@missing) {
 			next if ( $j eq "Culicidae" );	# Ignore generic species assertion, don't make confirmed zero sample size for generic terms
+			next if ( $j =~ /genus/ );
+
 			push @{ $ISA{$new_sample_id}{Species} },  $j;   #
 		}
-		$ISA{$new_sample_id}{SpeciesProc}          = "Morphological identification";   # species identification method
-		$ISA{$new_sample_id}{SamSex}               = "female";   # sex
-		$ISA{$new_sample_id}{SamStage}             = "adult";    # developmental stage
+		$ISA{$new_sample_id}{SpeciesProc}          = "SPECIES_MORPHO";   	# species identification method
+		$ISA{$new_sample_id}{SamSex}               = "female";   		# sex
+		$ISA{$new_sample_id}{SamStage}             = "adult";    		# developmental stage
 	}
 }
 
@@ -397,7 +410,21 @@ sub get_data_from_file {
 			$ISA{$f[1]}{TrapQuantity}         = $f[11];   # No. of traps deployed
 			# Collected material metadate
 			$ISA{$f[1]}{SamQuantity}          = $f[16];   # No. of animals collected
-			push @{ $ISA{$f[1]}{Species} },     $f[12];   # species
+
+			if  ( $f[12] eq "BLANK" ) {
+				foreach my $j (@species) {
+					# Ignore generic species assertion, don't make confirmed zero sample size for generic terms
+					next if ( $j eq "Culicidae" );
+					next if ( $j eq "genus Culex" );
+					next if ( $j eq "genus Aedes" );
+					next if ( $j eq "genus Anopheles" );
+					push @{ $ISA{$f[1]}{Species} },  $j;
+				}
+			}
+			else {
+				push @{ $ISA{$f[1]}{Species} },     $f[12];   # species
+			}
+
 			$ISA{$f[1]}{SpeciesProc}          = $f[13];   # species identification method
 			$ISA{$f[1]}{SamStage}             = $f[14];   # developmental stage
 			$ISA{$f[1]}{SamSex}               = $f[15];   # sex
@@ -465,11 +492,11 @@ sub get_project_metadata {
 			$meta{Collection_nomenclature} = $1;
 		}
 		# Enumerated list of species
-		if ( ( $line =~ /^Study_species\s+\:\s+\'(\S+.+?)\', \'(\S+)\'$/ ) ) {
+		if ( ( $line =~ /^Study_species\s+\:\s+\'(\S+.+?)\',\s+\'(\S+)\'$/ ) ) {
 			$species{$1} = $2;
 		}
 		# Ontology terms assertions
-		if ( ( $line =~ /^Study_ontology\s+\:\s+\'(.+?)\', \'(\S+)\'$/ ) ) {
+		if ( ( $line =~ /^Study_ontology\s+\:\s+\'(.+?)\',\s+\'(\S+)\'$/ ) ) {
 			$ontology_lookup{$1} = $2;
 		}
 
