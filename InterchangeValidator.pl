@@ -71,6 +71,14 @@ while (my $line = <$data>) {
 	if ($csv->parse($line)) {
 		my @f = $csv->fields();
 
+
+		##
+		##
+		##
+		if ( $f[5] eq "GPS_lat") {
+			next;
+		}
+
 		##
 		## Ignore column constraint for comment lines
 		##
@@ -96,17 +104,23 @@ while (my $line = <$data>) {
 		}
 
 		##
+		## Missing GPS coordinates
+		##
+		if ( ( $f[5] eq "" ) or ( $f[6] eq "" ) ) {
+			print OUTPUT "// ERROR: GPS lat-lon coordinates are missing for sample $f[1] at $rows\n";
+			$errors++;
+		}
+
+		##
 		## Min/Max values for latitude and longitude
 		##
 		if ( ($f[5] < -90) or ($f[5] > 90) ) {
 			print OUTPUT "// WARNING: Latitude coordinate is out of range (-90 < Lat < 90), $f[5] at $rows \n";
 			$warnings++;
-			next;
 		}
 		if ( ($f[6] < -180) or ($f[6] > 180) ) {
 			print OUTPUT "// WARNING: Longitude coordinate is out of range (-180 < Lat < 180), $f[6] at $rows\n";
 			$warnings++;
-			next;
 		}
 
 		##
