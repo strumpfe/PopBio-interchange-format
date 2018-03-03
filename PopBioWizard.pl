@@ -150,7 +150,7 @@ if ( $add_zeros ) {
 			next;
 		}
 
-		if ( ($missing[0] =~ /genus/ ) or ($missing[0] eq "Culicidae") ) {
+		if ( ($missing[0] =~ /genus/ ) or ($missing[0] eq "Culicinae") or ($missing[0] eq "Culicidae") ) {
 			print "// Not making a zero entry as missing species is a generic term $i\n\n" if ( $verbose );
 			next;
 		}
@@ -161,7 +161,7 @@ if ( $add_zeros ) {
 		print "// Collection $i ($number_spp) :: [" . (join ', ', @missing) . "]\n" if ( $verbose );
 		$max_sample_id++;
 
-		my $new_sample_id = sprintf ("$meta{Sample_nomenclature}_%.4d", $max_sample_id);
+		my $new_sample_id = sprintf ("$meta{Sample_nomenclature}_%.5d", $max_sample_id);
 		print "// Create new sample \"$new_sample_id\" for collection $i\n\n" if ( $verbose );
 
 		# Collection IDs
@@ -183,7 +183,8 @@ if ( $add_zeros ) {
 		# Collected material metadate
 		$ISA{$new_sample_id}{SamQuantity}     = 0;   # No. of animals collected
 		foreach my $j (@missing) {
-			next if ( $j eq "Culicidae" );	# Ignore generic species assertion, don't make confirmed zero sample size for generic terms
+			next if ( $j eq "Culicidae" );	# Ignore generic species, don't make confirmed zero sample size for generic terms
+			next if ( $j eq "Culicinae" );
 			next if ( $j =~ /genus/ );
 
 			push @{ $ISA{$new_sample_id}{Species} },  $j;   #
@@ -241,7 +242,7 @@ if ( $a_collection ) {
 	print OUTPUT "Sample Name,Assay Name,Description,Protocol REF,Performer,Date,Characteristics [sampling time (EFO:0000689)],Characteristics [Temperature at time of collection (EFO:0001702)],Unit,Term Source Ref,Term Accession Number,Comment [household ID],Characteristics [Collection site (VBcv:0000831)],Term Source Ref,Term Accession Number,Characteristics [Collection site latitude (VBcv:0000817)],Characteristics [Collection site longitude (VBcv:0000816)],Characteristics [Collection site altitude (VBcv:0000832)],Comment [collection site coordinates],Characteristics [Collection site location (VBcv:0000698)],Characteristics [Collection site village (VBcv:0000829)],Characteristics [Collection site locality (VBcv:0000697)],Characteristics [Collection site suburb (VBcv:0000845)],Characteristics [Collection site city (VBcv:0000844)],Characteristics [Collection site county (VBcv:0000828)],Characteristics [Collection site district (VBcv:0000699)],Characteristics [Collection site province (VBcv:0000700)],Characteristics [Collection site country (VBcv:0000701)]\n";
 
 	foreach my $i (keys %ISA) {
-		printf OUTPUT ("$ISA{$i}{SamID},$ISA{$i}{ColID},\"$ISA{$i}{ColDesc}\",COLLECT_$ISA{$i}{TrapType},,$ISA{$i}{ColStart},,,,,,,,,,$ISA{$i}{ColLat},$ISA{$i}{ColLon},,IA,,,,,,,,,\n", $i );
+		printf OUTPUT ("$ISA{$i}{SamID},$ISA{$i}{ColID},\"$ISA{$i}{ColDesc}\",COLLECT_$ISA{$i}{TrapType},,$ISA{$i}{ColStart},,,,,,,,GAZ,,$ISA{$i}{ColLat},$ISA{$i}{ColLon},,IA,,,,,,,,,\n", $i );
 	}
 	close OUTPUT;
 }
@@ -263,7 +264,7 @@ if ( $a_species ) {
 		my ($sp_species,$sp_onto,$sp_acc);
 		foreach my $j ( @{ $ISA{$i}{Species} } ) {
 			my ($onto,$acc) = $species{$j} =~ ( /^(\S+?)\:(\S+)/ );
-			if ( $acc eq "" ) { print "// WARNING: No ontology term for $j [$ISA{$i}{ColID} : $ISA{$i}{SamID}]\n"; }
+			if ( $acc eq "" ) { print "// WARNING: No ontology term for $j $i [$ISA{$i}{ColID} : $ISA{$i}{SamID}]\n"; }
 			$sp_species = $sp_species . $j . ";";
 			$sp_onto    = $sp_onto . $onto . ";";
 			$sp_acc     = $sp_acc . $acc   . ";";
@@ -380,7 +381,8 @@ sub get_data_from_file {
 
 		$row_count++;
 		chomp $line;
-		next if  ( $line =~ /^\/\// );  # discard header line
+		next if ( $line =~ /^\/\// );  # discard header line
+		next if ( $line =~ /^collection\,sample/ );
 
 		if ($csv->parse($line)) {
 			my @f = $csv->fields();
@@ -413,9 +415,8 @@ sub get_data_from_file {
 				foreach my $j (@species) {
 					# Ignore generic species assertion, don't make confirmed zero sample size for generic terms
 					next if ( $j eq "Culicidae" );
-					next if ( $j eq "genus Culex" );
-					next if ( $j eq "genus Aedes" );
-					next if ( $j eq "genus Anopheles" );
+					next if ( $j eq "Culicinae" );
+					next if ( $j =~ /genus/ );
 					push @{ $ISA{$f[1]}{Species} },  $j;
 				}
 			}
@@ -452,7 +453,7 @@ sub get_data_from_file {
 			$collection_meta{$f[0]}{TrapQuantity}   = $f[11];   # No. of traps deployed
 
 			# Calculating the maximum sample ID ordinal
-			my ( $ord ) = $f[1] =~ ( /sample_(\d{4})/ );
+			my ( $ord ) = $f[1] =~ ( /sample_(\d{5})/ );
 			if ( $ord > $max_sample_id ) {
 				$max_sample_id = $ord;
 			}
