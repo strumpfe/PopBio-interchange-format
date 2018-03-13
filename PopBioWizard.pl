@@ -138,7 +138,7 @@ if ( $add_zeros ) {
 		my @missing  = grep { ! ({ $_, 0 } ~~ @distinct) } @species;
 
 		my $number_spp = scalar @distinct;
-		print "// Collection $i ($number_spp) :: [" . (join ', ', @distinct) . "]\n" if ( $verbose );
+		print "// Collection $i ($number_spp) :: [" . (join ', ', @distinct) . "]\n" if ( $moreverbose );
 
 		# Check whether this collection is complete (has all species been found?)
 		# If true then we don't need to make a new sample for the collection to store confirmed absences
@@ -158,7 +158,7 @@ if ( $add_zeros ) {
 		# Make a new sample for confirmed absences
 		print "// Need to add confirmed absence for collection $i, " . ($max_species_num - $number_spp ) . "\n" if ( $verbose );
 
-		print "// Collection $i ($number_spp) :: [" . (join ', ', @missing) . "]\n" if ( $verbose );
+		print "// Collection $i ($number_spp) :: [" . (join ', ', @missing) . "]\n" if ( $moreverbose );
 		$max_sample_id++;
 
 		my $new_sample_id = sprintf ("$meta{Sample_nomenclature}_%.5d", $max_sample_id);
@@ -412,6 +412,8 @@ sub get_data_from_file {
 			$ISA{$f[1]}{SamQuantity}          = $f[16];   # No. of animals collected
 
 			if  ( $f[12] eq "BLANK" ) {
+				print "// Assert all species for the Blank collection $f[0] $f[1]\n" if ($verbose);
+				$ISA{$f[1]}{SamDesc} = "Record of absence of some species of mosquito";
 				foreach my $j (@species) {
 					# Ignore generic species assertion, don't make confirmed zero sample size for generic terms
 					next if ( $j eq "Culicidae" );
