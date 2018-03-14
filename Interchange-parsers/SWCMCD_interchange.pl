@@ -112,7 +112,7 @@ while (my $line = <$data>) {
 		my $collection_date_start            = $f[12];		# Collection end data will be calculated using $collection_timespan
 		my $collection_timespan              = 1;		# Number of days trap deployed
 		my $collection_GPS_lat               = $f[4];		# Latitude in decimal degrees
-		my $collection_GPS_lon               = $f[5];		# Longitude in decimal degrees
+		my $collection_GPS_lon               = $f[5];		# Longitude in decimal degrees∑
 		my $collection_location_description  = $f[6];		# Description of collection location
 		my $collection_trap_ID               = $f[0];		# Trap ID
 		my $collection_trap_type             = $f[1];		# Trap type/protocol
@@ -149,7 +149,7 @@ while (my $line = <$data>) {
 						# Determine 1 day period
 						my ($year,$month,$day) = $collection_date_start =~ (/(\d{4})-(\d{2})-(\d{2})/);
 						my $dt1 = DateTime->new( year => $year, month => $month, day => $day );
-						my $dt2 = $dt1->clone->add( days => ¢collection_timespan);
+						my $dt2 = $dt1->clone->add( days => $collection_timespan);
 						# Print collection details
 						printf OUTPUT ("${prefix_collection}_%05d,${prefix_sample}_%05d,", $collection, $sample);
 						print OUTPUT $dt1->ymd . "," . $dt2->ymd . ",";
