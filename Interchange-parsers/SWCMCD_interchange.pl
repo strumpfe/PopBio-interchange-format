@@ -112,7 +112,7 @@ while (my $line = <$data>) {
 		my $collection_date_start            = $f[12];		# Collection end data will be calculated using $collection_timespan
 		my $collection_timespan              = 1;		# Number of days trap deployed
 		my $collection_GPS_lat               = $f[4];		# Latitude in decimal degrees
-		my $collection_GPS_lon               = $f[5];		# Longitude in decimal degrees∑
+		my $collection_GPS_lon               = $f[5];		# Longitude in decimal degrees
 		my $collection_location_description  = $f[6];		# Description of collection location
 		my $collection_trap_ID               = $f[0];		# Trap ID
 		my $collection_trap_type             = $f[1];		# Trap type/protocol
@@ -158,7 +158,7 @@ while (my $line = <$data>) {
 						print OUTPUT "$collection_trap_type,\"$collection_trap_attractant\",";
 						print OUTPUT "$collection_trap_number,$collection_trap_duration,";
 						print OUTPUT "BLANK,";
-						print OUTPUT "$collection_species_id_protocol,$collection_devstage,$collection_sex,$f[$i],\n";
+						print OUTPUT "$collection_species_id_protocol,$collection_devstage,$collection_sex,$f[$i],";
 						print OUTPUT ",,,\n";
 						}
 					next;
