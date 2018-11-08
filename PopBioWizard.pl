@@ -470,7 +470,7 @@ sub get_data_from_file {
 			$collection_meta{$f[0]}{TrapQuantity}   = $f[11];   # No. of traps deployed
 
 			# Calculating the maximum sample ID ordinal
-			my ( $ord ) = $f[1] =~ ( /sample_(\d{5})/ );
+			my ( $ord ) = $f[1] =~ ( /sample_(\d+)/ );
 			if ( $ord > $max_sample_id ) {
 				$max_sample_id = $ord;
 			}
