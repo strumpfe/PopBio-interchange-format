@@ -31,6 +31,7 @@ my $local;               	# Read from local hash (.dat format)
 my $file;                	# Read from local data file (.pop format)
 my $configfile;          	# Local configuration file with project metadata (akin to the i_investigation sheet)
 my $add_zeros;	     	# Programmatically add zero sized sample for each collection (impute species from full list)
+my $bg_counter;         # Use BG-Counter term for Protocol REF
 my $max_species_num;	# Total number of species reported/tested for
 my $max_sample_id;  	# Maximum ordinal in sample ID, needed for when adding verified absences (zero sample size)
 my $s_sample;
@@ -51,6 +52,7 @@ GetOptions (
     "config=s"      => \$configfile,
     # Process
     "zeros"         => \$add_zeros,
+    "bg-counter"    => \$bg_counter,
     # Output
     "sample"        => \$s_sample,
     "collection"    => \$a_collection,
@@ -259,8 +261,17 @@ if ( $a_species ) {
 
 	print OUTPUT "Sample Name,Assay Name,Description,Protocol REF,Performer,Date,Characteristics [species assay result (VBcv:0000961)],Term Source Ref,Term Accession Number\n";
 
+	my $species_proc;  # species identification method
+
+	if ( $bg_counter ) {
+		$species_proc = "SPECIES";
+	}
+	else {
+		$species_proc = "SPECIES_MORPHO";
+	}
+
 	foreach my $i (keys %ISA) {
-		printf OUTPUT ("$ISA{$i}{SamID},$ISA{$i}{SamID}.spp,,SPECIES_MORPHO,,$ISA{$i}{ColStart},", $i );
+		printf OUTPUT ("$ISA{$i}{SamID},$ISA{$i}{SamID}.spp,,$species_proc,,$ISA{$i}{ColStart},", $i );
 		my ($sp_species,$sp_onto,$sp_acc);
 		foreach my $j ( @{ $ISA{$i}{Species} } ) {
 			my ($onto,$acc) = $species{$j} =~ ( /^(\S+?)\:(\S+)/ );
