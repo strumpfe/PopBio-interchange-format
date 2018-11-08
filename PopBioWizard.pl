@@ -397,7 +397,7 @@ sub get_data_from_file {
 		$row_count++;
 		chomp $line;
 		next if ( $line =~ /^\/\// );  # discard header line
-		next if ( $line =~ /^collection\,sample/ );
+		next if ( $line =~ /^collection_ID\,sample_ID/ );
 
 		if ($csv->parse($line)) {
 			my @f = $csv->fields();
