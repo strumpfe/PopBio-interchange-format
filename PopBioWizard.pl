@@ -38,6 +38,7 @@ my $s_sample;
 my $a_collection;
 my $a_species;
 my $a_virus;
+my $skip_backup;        # Don't store a local copy of the hash
 #---------------------------------------------------------#
 
 #---------------------------------------------------------#
@@ -58,6 +59,7 @@ GetOptions (
     "collection"    => \$a_collection,
     "species"       => \$a_species,
     "virus"	=> \$a_virus,
+    "skip-backup"   => \$skip_backup,
     );
 #---------------------------------------------------------#
 
@@ -331,7 +333,9 @@ if ( $a_virus ) {
 ## Write out perl hash of data to local disk
 ##
 
-&write_data_to_local_file;
+if (!$skip_backup) {
+	&write_data_to_local_file;
+}
 
 exit(0);
 
