@@ -10,6 +10,7 @@ use Getopt::Long;
 use IO::Handle;
 use Text::ParseWords;
 use Text::CSV;
+use Text::CSV::Hashify;
 use Data::Dumper;
 
 # Hash name
@@ -388,106 +389,62 @@ sub get_data_from_local_hash {
 ##
 
 sub get_data_from_file {
-	my $csv = Text::CSV->new( { binary => 1 } );              	# create a new object
+	%ISA = %{ hashify($file, 'sample_ID') };
+
 	my $row_count;					# count number of rows processed for reporting
 	my $row_parsed;					# count number of rows parsed for reporting
 
-	open (my $data, "< $file") or die "Can't open file '$file' : $!\n";
-	while (my $line = <$data>) {
+	foreach my $key (keys %ISA) {
+		my %value = %{ $ISA{$key} };
 
-		$row_count++;
-		chomp $line;
-		next if ( $line =~ /^\/\// );  # discard header line
-		next if ( $line =~ /^collection_ID\,sample_ID/ );
+		# If trap_type is AWOL set to MIRO:30000045 "catch of live specimens"
+		if ($value{trap_type} eq "") {
+			$value{trap_type} = "LIVE";
+		}
 
-		if ($csv->parse($line)) {
-			my @f = $csv->fields();
-
-			$ISA{$f[1]}{ColID}                = $f[0];   # collection ID
-			$ISA{$f[1]}{SamID}                = $f[1];   # sample ID
-			# Collection date
-			$ISA{$f[1]}{ColStart}             = $f[2];   # collection start date
-			$ISA{$f[1]}{ColEnd}               = $f[3];   # collection end date
-			# Collection site location
-			$ISA{$f[1]}{ColLat}               = $f[5];   # collection site latitude
-			$ISA{$f[1]}{ColLon}               = $f[6];   # collection site longitude
-			$ISA{$f[1]}{ColDesc}              = $f[7];   # collection site description
-			# Collection trap metadata
-			$ISA{$f[1]}{TrapType}             = $f[8];   # trap type
-
-			# If trap_type is AWOL set to MIRO:30000045 "catch of live specimens"
-			if ( $f[8] eq "" ) {
-				$ISA{$f[1]}{TrapType} = "LIVE";
+		if ($value{species} eq "BLANK") {
+			print "// Assert all species for the Blank collection $value{collection_ID} $value{sample_ID}\n" if ($verbose);
+			$value{SamDesc} = "Record of absence of some species of mosquito";
+			$value{species} = ();
+			foreach my $j (@species) {
+				# Ignore generic species assertion, don't make confirmed zero sample size for generic terms
+				next if ( $j eq "Culicidae" );
+				next if ( $j eq "Culicinae" );
+				next if ( $j =~ /genus/ );
+				push @{ $value{species} },  $j;
 			}
+		}
 
-			$ISA{$f[1]}{Attractant}           = $f[9];   # trap type
-
-			$ISA{$f[1]}{TrapDuration}         = $f[10];   # Duration of trap deployment
-			$ISA{$f[1]}{TrapQuantity}         = $f[11];   # No. of traps deployed
-			# Collected material metadate
-			$ISA{$f[1]}{SamQuantity}          = $f[16];   # No. of animals collected
-
-			if  ( $f[12] eq "BLANK" ) {
-				print "// Assert all species for the Blank collection $f[0] $f[1]\n" if ($verbose);
-				$ISA{$f[1]}{SamDesc} = "Record of absence of some species of mosquito";
-				foreach my $j (@species) {
-					# Ignore generic species assertion, don't make confirmed zero sample size for generic terms
-					next if ( $j eq "Culicidae" );
-					next if ( $j eq "Culicinae" );
-					next if ( $j =~ /genus/ );
-					push @{ $ISA{$f[1]}{Species} },  $j;
-				}
-			}
-			else {
-				push @{ $ISA{$f[1]}{Species} },     $f[12];   # species
-			}
-
-			$ISA{$f[1]}{SpeciesProc}          = $f[13];   # species identification method
-			$ISA{$f[1]}{SamStage}             = $f[14];   # developmental stage
-			$ISA{$f[1]}{SamSex}               = $f[15];   # sex
-
-			# Assays metadata and result
-			push @{ $ISA{$f[1]}{Assay} },      "$f[17];$f[18];$f[19];$f[20];";   # assay type
-
-
-			# Parallel tracking of collection metadata ()
-			#
-			# Lazy overwriting of (presumed) consistent collection metadata
-
-			$collection_meta{$f[0]}{ColStart}      = $f[2];    # collection start date
-			$collection_meta{$f[0]}{ColEnd}        = $f[3];    # collection end date
-
-			$collection_meta{$f[0]}{ColLat}        = $f[5];    # collection site latitude
-			$collection_meta{$f[0]}{ColLon}        = $f[6];    # collection site longitude
-			$collection_meta{$f[0]}{ColDesc}       = $f[7];    # collection site description
-
-			$collection_meta{$f[0]}{TrapType}      = $f[8];    # trap type
-			# If trap_type is AWOL set to MIRO:30000045 "catch of live specimens"
-			if ( $f[8] eq "" ) {
-				$collection_meta{$f[0]}{TrapType} = "LIVE";
-			}
-			$collection_meta{$f[0]}{TrapAttractant} = $f[9];    # trap type
-			$collection_meta{$f[0]}{TrapDuration}   = $f[10];   # Duration of trap deployment
-			$collection_meta{$f[0]}{TrapQuantity}   = $f[11];   # No. of traps deployed
-
-			# Calculating the maximum sample ID ordinal
-			my ( $ord ) = $f[1] =~ ( /sample_(\d+)/ );
-			if ( $ord > $max_sample_id ) {
-				$max_sample_id = $ord;
-			}
-
-			# Tracking for debug/reporting
-			$row_parsed++;
+		# Parallel tracking of collection metadata ()
+		#
+		# Lazy overwriting of (presumed) consistent collection metadata
+		for my $column ('collection_start_date', 'collection_end_date', 'GPS_latitude', 'GPS_longitude', 'location_description', 'trap_type', 'attractant', 'trap_duration', 'trap_number') {
+			$collection_meta{$key}{$column} = $value{$column};
 		}
 	}
 
+			# Assays metadata and result
+			# push @{ $ISA{$f[1]}{Assay} },      "$f[17];$f[18];$f[19];$f[20];";   # assay type
+
+			#
+			# # Calculating the maximum sample ID ordinal
+			# my ( $ord ) = $f[1] =~ ( /sample_(\d+)/ );
+			# if ( $ord > $max_sample_id ) {
+			# 	$max_sample_id = $ord;
+			# }
+
+			# Tracking for debug/reporting
+			# $row_parsed++;
+	# 	}
+	# }
+
 	# Report number of rows parsed from the input file
-	if ( $verbose ) {
-		print "// Parsed file      : $file\n";
-		print "// No. rows in file : $row_count\n";
-		print "// No. rows parsed  : $row_parsed\n";
-		print "// Max. sample ID   : $max_sample_id\n";
-	}
+	# if ( $verbose ) {
+	# 	print "// Parsed file      : $file\n";
+	# 	print "// No. rows in file : $row_count\n";
+	# 	print "// No. rows parsed  : $row_parsed\n";
+	# 	print "// Max. sample ID   : $max_sample_id\n";
+	# }
 }
 
 ##
