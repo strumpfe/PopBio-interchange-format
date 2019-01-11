@@ -5,6 +5,7 @@
 ## 2018-01-17 v0.1
 
 use strict;
+use warnings;
 use Getopt::Long;
 use IO::Handle;
 use Text::ParseWords;
