@@ -1,0 +1,25 @@
+study_identifier : test_SAF_from_Sarah
+study_title : Aedes data from somewhere
+study_submission_date : 2018
+study_description :
+  Multiple lines are allowed here, and
+  newlines will be replaced by spaces, which
+  is a good thing.  Colons, like this ':'
+  do need to be single quoted.
+
+
+# comments are indicated by a '#'
+# list the species expected to be identified
+# and their ontology terms
+
+study_species : 
+  Aedes : VBsp:0000253
+  Aedes albopictus : VBsp:0000522
+  Aedes japonicus : VBsp:0003872
+  Aedes triseriatus : VBsp:0001206
+
+study_terms :
+  adult : IDOMAL:0000655
+  female : PATO:0000383
+  male : PATO:0000384
+  pool : EFO:0000663

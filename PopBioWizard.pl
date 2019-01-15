@@ -13,35 +13,30 @@ use Text::CSV;
 use Text::CSV::Hashify 0.11;
 use Data::Dumper;
 use Tie::Hash::Indexed;
+use YAML::XS qw/LoadFile/;
+use Bio::Parser::ISATab;
 
 my %ISA;  # main hash to store data read in from $file - main key is sample ID
 tie %ISA, 'Tie::Hash::Indexed'; # ordered hash - will return samples in order
-
-my %meta; # config file-derived metadata
-my %species;
-my @species;
-my %ontology_lookup;
 my %collection_meta;
-my %geoname;
 
 # Options
 my $verbose;                    # Verbose messages
 my $moreverbose;                # More verbosity
-my $debug;                      # Write out data parsing debug information (very verbose)
 my $help;                       # Help documentation via POD
 my $file;                       # Read from local data file (.csv or tsv interchange format)
 my $configfile;                 # Local configuration file with project metadata (akin to the i_investigation sheet)
 my $add_zeros;	     	        # Programmatically add zero sized sample for each collection (impute species from full list)
 my $bg_counter;                 # Use BG-Counter term for Protocol REF
-my $max_species_num;	        # Total number of species reported/tested for
-my $max_sample_id;  	        # Maximum ordinal in sample ID, needed for when adding verified absences (zero sample size)
 my $output_delimiter = ",";     # should be "tab", "TAB", "comma", "COMMA", or ","  (providing an actual TAB on commandline is a hassle)
 my $output_directory = "./temp-isa-tab";  # where the output ISA-Tab files should go
 my $output_suffix = "txt";      # ISA-Tab output files file suffix - not a commandline option - will be set automatically to 'csv' if needed
+my $i_investigation;
 my $s_sample;
 my $a_collection;
 my $a_species;
 my $a_virus;
+my $all_regular_sheets;
 
 #---------------------------------------------------------#
 
@@ -58,10 +53,12 @@ GetOptions (
     "zeros"         => \$add_zeros,
     "bg-counter"    => \$bg_counter,
     # Output
-    "sample"        => \$s_sample,
+    "investigation" => \$i_investigation,
+    "samples"        => \$s_sample,
     "collection"    => \$a_collection,
     "species"       => \$a_species,
     "virus"	    => \$a_virus,
+    "isatab"        => \$all_regular_sheets, # shortcut for -investigation -samples -collection --species --output_delimiter TAB
     "output-delimiter|delimiter=s" => \$output_delimiter,
     "output-directory|directory=s" => \$output_directory,
     );
@@ -69,6 +66,11 @@ GetOptions (
 
 die "must provide --file <input_filename> and --config <config_filename> options\n" unless ($file && $configfile);
 
+# handle some implied commandline args
+$verbose = 1 if ($moreverbose);
+if ($all_regular_sheets) {
+    ($i_investigation, $s_sample, $a_collection, $a_species, $output_delimiter) = (1,1,1,1,"TAB");
+}
 
 # convert $output_delimiter option (any other values will fall through)
 $output_delimiter = "\t" if ($output_delimiter =~ /tab/i);
@@ -80,30 +82,45 @@ $output_suffix = "csv" if ($output_delimiter eq ",");
 ## Get project metadata from configuration file
 ##
 
-&get_project_metadata;
+my $config = LoadFile($configfile); # read from YAML format
+die "problem reading config file '$configfile' - is it YAML formatted?\n" unless (keys %$config);
 
 print "// PopBioWizard run ". gmtime( time()) ."\n";
 print "//  configuration from $configfile\n";
 print "//  data from file $file\n" if ( $file );
 print "\n";
-print "// Study identifier = $meta{Study_identifier}\n";
+print "// Study identifier = '$config->{study_identifier}'\n";
+my @expected_species = keys %{$config->{study_species}};
+my $max_species_num = scalar @expected_species;
+
 print "// No. of species tested : $max_species_num\n";
-#print "// Species list : [" . ( join ',', @species) . "]\n";
-foreach my $i (sort keys %species) {
-    printf ("//  %-30s $species{$i}\n", $i);
+
+foreach my $i (@expected_species) {
+    printf ("//  %-30s $config->{study_species}{$i}\n", $i);
 }
-my $ontoterms = keys %ontology_lookup;
+my $ontoterms = keys %{$config->{study_terms}};
 print "\n// No. of ontology terms : $ontoterms\n";
-foreach my $i (sort keys %ontology_lookup) {
-    printf ("//  %-30s $ontology_lookup{$i}\n", $i);
+foreach my $i (sort keys %{$config->{study_terms}}) {
+    printf ("//  %-30s $config->{study_terms}{$i}\n", $i);
 }
 print "\n";
 
 
+##
+## handle i_investigation sheet (only needs data from config file)
+##
+
+if ($i_investigation) {
+    print "// Writing $output_directory/i_investigation.txt sheet\n" if ($verbose);
+    my $isa_parser = Bio::Parser::ISATab->new(directory => $output_directory);
+    $config->{study_file_name} = "s_samples.$output_suffix";
+    $isa_parser->write( { ontologies => [], studies => [ $config ] } );
+    print "// Done investigation sheet\n" if ($moreverbose);
+}
+
 
 ##
 ## Read collection information
-## either from .dat hash table or local file
 ##
 
 # retrieve data from local file (.pop format)
@@ -128,6 +145,7 @@ if ( $add_zeros ) {
 
     my %species_seen;		# List of reported species for each collection
     my %collections2add;	# Hash of collection IDs for which confirmed absence needs to be added
+    my %zero_sample_count;      # counter for the ordinal added to zero sample IDs: <collection_ID>_zero_sample_NNN
 
     # Loop through hash to collate list of seen species
     foreach my $i ( keys %ISA ) {
@@ -143,7 +161,7 @@ if ( $add_zeros ) {
     foreach my $i ( sort keys %collections2add ) {
 
 	my @distinct = uniq( @{ $species_seen{$i} } );
-	my @missing  = grep { ! ({ $_, 0 } ~~ @distinct) } @species;
+	my @missing  = grep { ! ({ $_, 0 } ~~ @distinct) } @expected_species;
 
 	my $number_spp = scalar @distinct;
 	print "// Collection $i ($number_spp) :: [" . (join ', ', @distinct) . "]\n" if ( $moreverbose );
@@ -165,11 +183,9 @@ if ( $add_zeros ) {
 
 	# Make a new sample for confirmed absences
 	print "// Need to add confirmed absence for collection $i, " . ($max_species_num - $number_spp ) . "\n" if ( $verbose );
-
 	print "// Collection $i ($number_spp) :: [" . (join ', ', @missing) . "]\n" if ( $moreverbose );
-	$max_sample_id++;
 
-	my $new_sample_id = sprintf ("$meta{Sample_nomenclature}_%.5d", $max_sample_id);
+	my $new_sample_id = sprintf ("${i}_zero_sample_%03d", ++$zero_sample_count{$i});
 	print "// Create new sample \"$new_sample_id\" for collection $i\n\n" if ( $verbose );
 
 	# Collection IDs
@@ -211,7 +227,7 @@ if ( $s_sample ) {
 
     my $s_tab = []; # output data structure reference to array of arrays
 
-    open(my $s_fh, ">$output_directory/s_sample.$output_suffix") || die;
+    open(my $s_fh, ">$output_directory/s_samples.$output_suffix") || die;
 
     push @{$s_tab}, [ 'Source Name', 'Sample Name', 'Description',
     'Material Type', 'Term Source Ref', 'Term Accession Number',
@@ -225,20 +241,20 @@ if ( $s_sample ) {
 	## preprocess ontology terms for ISA-tab output
 	# Material type, default "pool" - but ontology term must be in the config file
 	my $type_val = "pool";
-	my ($type_ontology, $type_accession) = $ontology_lookup{$type_val} =~ (/(\S+?)\:(\S+)/);
+	my ($type_ontology, $type_accession) = $config->{study_terms}{$type_val} =~ (/(\S+?)\:(\S+)/);
 	die "missing sample type ontology term for '$type_val'\n" unless (defined $type_accession);
 
 	my $sex_val = $ISA{$i}{sex};
-	my ($sex_ontology, $sex_accession) = $ontology_lookup{$sex_val} =~ (/(\S+?)\:(\S+)/);
+	my ($sex_ontology, $sex_accession) = $config->{study_terms}{$sex_val} =~ (/(\S+?)\:(\S+)/);
 	die "missing sex ontology term for '$sex_val'\n" unless (defined $sex_accession);
 
 	my $stage_val = $ISA{$i}{developmental_stage};
-	my ($stage_ontology,$stage_accession) = $ontology_lookup{$stage_val} =~ (/(\S+?)\:(\S+)/);
+	my ($stage_ontology,$stage_accession) = $config->{study_terms}{$stage_val} =~ (/(\S+?)\:(\S+)/);
 	die "missing dev stage ontology term for '$stage_val'\n" unless (defined $stage_accession);
 
 	## push the row of data into the table
 	push @{$s_tab}, [
-	    $meta{Study_identifier},
+	    $config->{study_identifier},
 	    $i,
 	    $row->{sample_description} || '',
 	    $type_val, $type_ontology, $type_accession,
@@ -296,7 +312,7 @@ if ( $a_species ) {
 	printf OUTPUT ("$ISA{$i}{sample_ID},$ISA{$i}{sample_ID}.spp,,$species_proc,,$ISA{$i}{collection_start_date},", $i );
 	my ($sp_species,$sp_onto,$sp_acc);
 	foreach my $j ( @{ $ISA{$i}{Species} } ) {
-	    my ($onto,$acc) = $species{$j} =~ ( /^(\S+?)\:(\S+)/ );
+	    my ($onto,$acc) = $config->{study_species}{$j} =~ ( /^(\S+?)\:(\S+)/ );
 	    if ( $acc eq "" ) { print "// WARNING: No ontology term for $j $i [$ISA{$i}{collection_ID} : $ISA{$i}{sample_ID}]\n"; }
 	    $sp_species = $sp_species . $j . ";";
 	    $sp_onto    = $sp_onto . $onto . ";";
@@ -414,7 +430,7 @@ sub get_data_from_file {
 	    print "// Assert all species for the Blank collection $sample_data->{collection_ID} $sample_data->{sample_ID}\n" if ($verbose);
 	    $sample_data->{sample_description} = "Record of absence of some species of mosquito";
 	    $sample_data->{species} = [];
-	    foreach my $j (@species) {
+	    foreach my $j (@expected_species) {
 		# Ignore generic species assertion, don't make confirmed zero sample size for generic terms
 		next if ( $j eq "Culicidae" );
 		next if ( $j eq "Culicinae" );
@@ -453,44 +469,6 @@ sub get_data_from_file {
     # 	print "// No. rows parsed  : $row_parsed\n";
     # 	print "// Max. sample ID   : $max_sample_id\n";
     # }
-}
-
-##
-## get_project_metadata
-##
-
-sub get_project_metadata {
-    open (my $data, "< $configfile") or die "Can't open file '$configfile' : $!\n";
-    while (my $line = <$data>) {
-	chomp $line;
-	# Study identifier
-	if ( ( $line =~ /^Study_identifier\s+\:\s+(\S+.+)$/) ) {
-	    $meta{Study_identifier} = $1;
-	}
-	if ( ( $line =~ /^Sample_nomenclature\s+\:\s+(\S+.+)$/) ) {
-	    $meta{Sample_nomenclature} = $1;
-	}
-	if ( ( $line =~ /^Collection_nomenclature\s+\:\s+(\S+.+)$/) ) {
-	    $meta{Collection_nomenclature} = $1;
-	}
-	# Enumerated list of species
-	if ( ( $line =~ /^Study_species\s+\:\s+\'(\S+.+?)\',\s+\'(\S+)\'$/ ) ) {
-	    $species{$1} = $2;
-	}
-	# Ontology terms assertions
-	if ( ( $line =~ /^Study_ontology\s+\:\s+\'(.+?)\',\s+\'(\S+)\'$/ ) ) {
-	    $ontology_lookup{$1} = $2;
-	}
-
-    }
-
-    # Make an array of the species names as well
-    foreach my $j (sort keys %species) {
-	push @species, $j;
-    }
-
-    # Store the total number of species reported
-    $max_species_num = scalar @species;
 }
 
 
