@@ -53,11 +53,11 @@ GetOptions (
     "zeros"         => \$add_zeros,
     "bg-counter"    => \$bg_counter,
     # Output
-    "investigation" => \$i_investigation,
-    "samples"        => \$s_sample,
-    "collection"    => \$a_collection,
-    "species"       => \$a_species,
-    "virus"	    => \$a_virus,
+    "investigation" => \$i_investigation,  # output the i_investigation.txt sheet (to $output_directory)
+    "samples"        => \$s_sample,        # output the s_samples.txt sheet
+    "collection"    => \$a_collection,     # and
+    "species"       => \$a_species,        # so
+    "virus"	    => \$a_virus,          # on
     "isatab"        => \$all_regular_sheets, # shortcut for -investigation -samples -collection --species --output_delimiter TAB
     "output-delimiter|delimiter=s" => \$output_delimiter,
     "output-directory|directory=s" => \$output_directory,
@@ -84,6 +84,8 @@ $output_suffix = "csv" if ($output_delimiter eq ",");
 
 my $config = LoadFile($configfile); # read from YAML format
 die "problem reading config file '$configfile' - is it YAML formatted?\n" unless (keys %$config);
+
+# print Dumper($config); exit;
 
 print "// PopBioWizard run ". gmtime( time()) ."\n";
 print "//  configuration from $configfile\n";
@@ -114,6 +116,31 @@ if ($i_investigation) {
     print "// Writing $output_directory/i_investigation.txt sheet\n" if ($verbose);
     my $isa_parser = Bio::Parser::ISATab->new(directory => $output_directory);
     $config->{study_file_name} = "s_samples.$output_suffix";
+
+    # fill in STUDY DESIGN DESCRIPTORS section if not provided already in config file
+    unless ($config->{study_designs}) {
+	$config->{study_designs} = [
+	    { study_design_type => 'observational design',
+	      study_design_type_term_source_ref => 'EFO',
+	      study_design_type_term_accession_number => '0000629' },
+	    { study_design_type => 'strain or line design',
+	      study_design_type_term_source_ref => 'EFO',
+	      study_design_type_term_accession_number => '0001754' },
+	    ];
+    }
+
+    # fill in STUDY ASSAYS section if not provided already in config file
+    unless ($config->{study_assays}) {
+	push @{$config->{study_assays}}, { study_assay_measurement_type => 'field collection',
+					   study_assay_file_name => "a_collection.$output_suffix" } if ($a_collection);
+	push @{$config->{study_assays}}, { study_assay_measurement_type => 'species identification assay',
+					   study_assay_file_name => "a_species.$output_suffix" } if ($a_species);
+	push @{$config->{study_assays}}, { study_assay_measurement_type => 'phenotype assay',
+					   study_assay_file_name => "a_virus.$output_suffix" } if ($a_virus);
+    }
+
+
+    # now write the i_investigation sheet using data in $config (any additional non-ISA-Tab data will be ignored)
     $isa_parser->write( { ontologies => [], studies => [ $config ] } );
     print "// Done investigation sheet\n" if ($moreverbose);
 }
@@ -205,17 +232,19 @@ if ( $add_zeros ) {
 	$ISA{$new_sample_id}{trap_duration}          = $collection_meta{$i}{trap_duration};    # Duration of trap deployment
 	$ISA{$new_sample_id}{trap_number}            = $collection_meta{$i}{trap_number};    # No. of traps deployed
 	# Collected material metadate
-	$ISA{$new_sample_id}{SamQuantity}     = 0;   # No. of animals collected
+	$ISA{$new_sample_id}{sample_count}           = 0;   # No. of animals collected
 	foreach my $j (@missing) {
 	    next if ( $j eq "Culicidae" );	# Ignore generic species, don't make confirmed zero sample size for generic terms
-	    next if ( $j eq "Culicinae" );
+	    next if ( $j eq "Culicinae" );      # I wonder if we could generalise this to all single-word taxonomic terms? <<<<<<
 	    next if ( $j =~ /genus/ );
 
 	    push @{ $ISA{$new_sample_id}{Species} },  $j;   #
 	}
-	$ISA{$new_sample_id}{SpeciesProc}          = "SPECIES_MORPHO";   	# species identification method
-	$ISA{$new_sample_id}{SamSex}               = "female";   		# sex
-	$ISA{$new_sample_id}{SamStage}             = "adult";    		# developmental stage
+
+	# TO SORT OUT STILL:
+	$ISA{$new_sample_id}{species_identification_method} = "SPECIES_MORPHO?????";   	# species identification method
+	$ISA{$new_sample_id}{sex}                           = "female";   		# sex
+	$ISA{$new_sample_id}{developmental_stage}           = "adult";    		# developmental stage
     }
 }
 
@@ -235,31 +264,14 @@ if ( $s_sample ) {
     'Characteristics [developmental stage (EFO:0000399)]', 'Term Source Ref', 'Term Accession Number',
     'Characteristics [sample size (VBcv:0000983)]' ];
 
-    foreach my $i (keys %ISA) {
-	my $row = $ISA{$i};
-
-	## preprocess ontology terms for ISA-tab output
-	# Material type, default "pool" - but ontology term must be in the config file
-	my $type_val = "pool";
-	my ($type_ontology, $type_accession) = $config->{study_terms}{$type_val} =~ (/(\S+?)\:(\S+)/);
-	die "missing sample type ontology term for '$type_val'\n" unless (defined $type_accession);
-
-	my $sex_val = $ISA{$i}{sex};
-	my ($sex_ontology, $sex_accession) = $config->{study_terms}{$sex_val} =~ (/(\S+?)\:(\S+)/);
-	die "missing sex ontology term for '$sex_val'\n" unless (defined $sex_accession);
-
-	my $stage_val = $ISA{$i}{developmental_stage};
-	my ($stage_ontology,$stage_accession) = $config->{study_terms}{$stage_val} =~ (/(\S+?)\:(\S+)/);
-	die "missing dev stage ontology term for '$stage_val'\n" unless (defined $stage_accession);
-
-	## push the row of data into the table
+    foreach my $row (values %ISA) {
 	push @{$s_tab}, [
 	    $config->{study_identifier},
-	    $i,
-	    $row->{sample_description} || '',
-	    $type_val, $type_ontology, $type_accession,
-	    $sex_val, $sex_ontology, $sex_accession,
-	    $stage_val, $stage_ontology, $stage_accession,
+	    $row->{sample_ID},
+	    $row->{sample_description} // '',
+	    ontology_triplet_lookup("pool", $config->{study_terms}, "strict"),
+	    ontology_triplet_lookup($row->{sex}, $config->{study_terms}, "strict"),
+	    ontology_triplet_lookup($row->{developmental_stage}, $config->{study_terms}, "strict"),
 	    $row->{sample_count}
 	];
     }
@@ -276,15 +288,35 @@ if ( $s_sample ) {
 
 if ( $a_collection ) {
 
-    open (OUTPUT, "> ./a_collection.csv");
+    my $c_tab = []; # output data structure reference to array of arrays
+    open(my $c_fh, ">$output_directory/a_collection.$output_suffix") || die;
 
-    # Header
-    print OUTPUT "Sample Name,Assay Name,Description,Protocol REF,Performer,Date,Characteristics [sampling time (EFO:0000689)],Characteristics [Temperature at time of collection (EFO:0001702)],Unit,Term Source Ref,Term Accession Number,Comment [household ID],Characteristics [Collection site (VBcv:0000831)],Term Source Ref,Term Accession Number,Characteristics [Collection site latitude (VBcv:0000817)],Characteristics [Collection site longitude (VBcv:0000816)],Characteristics [Collection site altitude (VBcv:0000832)],Comment [collection site coordinates],Characteristics [Collection site location (VBcv:0000698)],Characteristics [Collection site village (VBcv:0000829)],Characteristics [Collection site locality (VBcv:0000697)],Characteristics [Collection site suburb (VBcv:0000845)],Characteristics [Collection site city (VBcv:0000844)],Characteristics [Collection site county (VBcv:0000828)],Characteristics [Collection site district (VBcv:0000699)],Characteristics [Collection site province (VBcv:0000700)],Characteristics [Collection site country (VBcv:0000701)]\n";
-
-    foreach my $i (keys %ISA) {
-	printf OUTPUT ("$ISA{$i}{sample_ID},$ISA{$i}{collection_ID},\"$ISA{$i}{collection_description}\",COLLECT_$ISA{$i}{trap_type},,$ISA{$i}{collection_start_date},,,,,,,,GAZ,,$ISA{$i}{GPS_latitude},$ISA{$i}{GPS_longitude},,IA,,,,,,,,,\n", $i );
+    push @{$c_tab}, [ 'Sample Name', 'Assay Name', 'Description',
+		      'Protocol REF', 'Performer', 'Date',
+		      'Characteristics [Collection site (VBcv:0000831)]', 'Term Source Ref', 'Term Accession Number',
+		      'Characteristics [Collection site latitude (VBcv:0000817)]',
+		      'Characteristics [Collection site longitude (VBcv:0000816)]'
+    ];
+    foreach my $row (values %ISA) {
+	push @{$c_tab}, [ $row->{sample_ID}, $row->{collection_ID}, $row->{collection_description} // '',
+			  $row->{trap_type},
+			  '', # blank Performer
+			  $row->{collection_start_date},
+			  # pending GAZ retirement...
+			  # temporary handling of "Collection site" column using the first available of
+			  # location_ADM2>location_ADM1>location_country>location_description
+                          # and looking up GAZ terms in the study_terms lookup if available
+			  ontology_triplet_lookup($row->{location_ADM2} || 
+						  $row->{location_ADM1} ||
+						  $row->{location_country} ||
+						  $row->{location_description}, $config->{study_terms}, 'relaxed'),
+			  $row->{GPS_latitude}, $row->{GPS_longitude},
+	];
+	# TO DO: collection site coordinates qualifier code or ontology term
+	
     }
-    close OUTPUT;
+    print_table($c_fh, $c_tab);
+    close($c_fh);
 }
 
 
@@ -420,6 +452,8 @@ sub get_data_from_file {
     foreach my $key (keys %ISA) {
 	my $sample_data = $ISA{$key};
 
+	# TO DO: validate trap_type is in $config hash
+
 	# If trap_type is AWOL set to MIRO:30000045 "catch of live specimens"
 	if ($sample_data->{trap_type} eq "") {
 	    $sample_data->{trap_type} = "LIVE";  # Note: this will just be the value for the Protocol REF column in the a_collection ISA-sheet
@@ -497,6 +531,48 @@ sub print_table {
     foreach my $row (@{$arrayref}) {
 	$csv_formatter->print($filehandle, $row);
     }
+}
+
+
+=head2 ontology_triplet_lookup
+
+
+=cut
+
+
+sub ontology_triplet_lookup {
+    my ($value, $lookup, $mode) = @_;
+    my $strict = $mode =~ /strict/i;
+
+    my ($onto, $acc) = ('', '');
+
+    if (defined $value && length($value)) {
+	
+	my $term_acc = $lookup->{$value};
+
+	if ($term_acc) {
+	    ($onto, $acc) = $term_acc =~ (/(\S+?)\:(\S+)/);
+	    if (defined $onto && defined $acc) {
+		return ($value, $onto, $acc);
+	    } elsif ($strict) {
+		die "malformed ontology term accession '$term_acc' in config file\n";
+	    } elsif ($verbose) {
+		warn "malformed ontology term accession '$term_acc' in config file\n";
+	    }
+	} elsif ($strict) {
+	    die "ontology term '$value' not defined in config file\n";
+	} elsif ($verbose) {
+	    warn "ontology term '$value' not defined in config file\n";
+	}
+    } elsif ($strict) {
+	die "empty value passed to ontology_triplet_lookup()\n";
+    } elsif ($verbose) {
+	warn "empty value passed to ontology_triplet_lookup()\n";
+	$value = '';
+    } else {
+	$value = '';
+    }
+    return ($value, $onto, $acc);
 }
 
 
