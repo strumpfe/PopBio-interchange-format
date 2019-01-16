@@ -27,7 +27,6 @@ my $help;                       # Help documentation via POD
 my $file;                       # Read from local data file (.csv or tsv interchange format)
 my $configfile;                 # Local configuration file with project metadata (akin to the i_investigation sheet)
 my $add_zeros;	     	        # Programmatically add zero sized sample for each collection (impute species from full list)
-my $bg_counter;                 # Use BG-Counter term for Protocol REF
 my $output_delimiter = ",";     # should be "tab", "TAB", "comma", "COMMA", or ","  (providing an actual TAB on commandline is a hassle)
 my $output_directory = "./temp-isa-tab";  # where the output ISA-Tab files should go
 my $output_suffix = "txt";      # ISA-Tab output files file suffix - not a commandline option - will be set automatically to 'csv' if needed
@@ -51,7 +50,6 @@ GetOptions (
     "config=s"      => \$configfile,
     # Process
     "zeros"         => \$add_zeros,
-    "bg-counter"    => \$bg_counter,
     # Output
     "investigation" => \$i_investigation,  # output the i_investigation.txt sheet (to $output_directory)
     "samples"        => \$s_sample,        # output the s_samples.txt sheet
@@ -177,7 +175,7 @@ if ( $add_zeros ) {
     # Loop through hash to collate list of seen species
     foreach my $i ( keys %ISA ) {
 
-	foreach my $j ( @{ $ISA{$i}{Species} } ) {
+	foreach my $j ( @{ $ISA{$i}{species} } ) {
 	    print "// $j collected on $ISA{$i}{collection_start_date} $ISA{$i}{collection_ID} $ISA{$i}{sample_ID}\n" if ( $moreverbose );
 	    push @{ $species_seen{$ISA{$i}{collection_ID}} }, $j;
 	    $collections2add{$ISA{$i}{collection_ID}} = 1;		# Mark collection for addition
@@ -238,7 +236,7 @@ if ( $add_zeros ) {
 	    next if ( $j eq "Culicinae" );      # I wonder if we could generalise this to all single-word taxonomic terms? <<<<<<
 	    next if ( $j =~ /genus/ );
 
-	    push @{ $ISA{$new_sample_id}{Species} },  $j;   #
+	    push @{ $ISA{$new_sample_id}{species} },  $j;   #
 	}
 
 	# TO SORT OUT STILL:
@@ -253,6 +251,7 @@ if ( $add_zeros ) {
 ##
 
 if ( $s_sample ) {
+    print "// Writing $output_directory/s_samples.$output_suffix sheet\n" if ($verbose);
 
     my $s_tab = []; # output data structure reference to array of arrays
 
@@ -287,22 +286,38 @@ if ( $s_sample ) {
 # [DL] Currently has no provision for adding collection location, GAZ term etc.
 
 if ( $a_collection ) {
+    print "// Writing $output_directory/a_collection.$output_suffix sheet\n" if ($verbose);
 
     my $c_tab = []; # output data structure reference to array of arrays
     open(my $c_fh, ">$output_directory/a_collection.$output_suffix") || die;
 
     push @{$c_tab}, [ 'Sample Name', 'Assay Name', 'Description',
 		      'Protocol REF', 'Performer', 'Date',
+		      'Characteristics [Collection duration in days (VBcv:0001009)]',
+		      'Comment [Trap ID]',
+		      'Characteristics [Attractant (IRO:0000034)]', 'Term Source Ref', 'Term Accession Number',
 		      'Characteristics [Collection site (VBcv:0000831)]', 'Term Source Ref', 'Term Accession Number',
 		      'Characteristics [Collection site latitude (VBcv:0000817)]',
 		      'Characteristics [Collection site longitude (VBcv:0000816)]'
     ];
+
     foreach my $row (values %ISA) {
+
+	if ($row->{trap_number} && $row->{trap_number} > 1) {
+	    die "trap_number values greater than 1 not yet handled in ISA-Tab/Chado\n";
+	}
+
 	push @{$c_tab}, [ $row->{sample_ID}, $row->{collection_ID}, $row->{collection_description} // '',
 			  $row->{trap_type},
 			  '', # blank Performer
+
+			  # TO DO: calculate difference between start and end dates?
 			  $row->{collection_start_date},
-			  # pending GAZ retirement...
+			  $row->{trap_duration} // '',
+			  $row->{trap_ID} // '',
+			  ontology_triplet_lookup($row->{attractant}, $config->{study_terms}, 'relaxed'),
+
+			  # Do the following, pending GAZ retirement...
 			  # temporary handling of "Collection site" column using the first available of
 			  # location_ADM2>location_ADM1>location_country>location_description
                           # and looking up GAZ terms in the study_terms lookup if available
@@ -310,6 +325,8 @@ if ( $a_collection ) {
 						  $row->{location_ADM1} ||
 						  $row->{location_country} ||
 						  $row->{location_description}, $config->{study_terms}, 'relaxed'),
+
+			  # Lat and long easy
 			  $row->{GPS_latitude}, $row->{GPS_longitude},
 	];
 	# TO DO: collection site coordinates qualifier code or ontology term
@@ -326,47 +343,47 @@ if ( $a_collection ) {
 
 
 if ( $a_species ) {
+    print "// Writing $output_directory/a_species.$output_suffix sheet\n" if ($verbose);
 
-    open (OUTPUT, "> ./a_species.csv");
+    my $sp_tab = []; # output data structure reference to array of arrays
+    open(my $sp_fh, ">$output_directory/a_species.$output_suffix") || die;
 
-    print OUTPUT "Sample Name,Assay Name,Description,Protocol REF,Performer,Date,Characteristics [species assay result (VBcv:0000961)],Term Source Ref,Term Accession Number\n";
+    push @{$sp_tab}, [ 'Sample Name', 'Assay Name', 'Description',
+		       'Protocol REF', 'Performer', 'Date',
+		       'Characteristics [species assay result (VBcv:0000961)]', 'Term Source Ref', 'Term Accession Number',
+    ];
 
-    my $species_proc;  # species identification method
+    foreach my $row (values %ISA) {
+	if (ref($row->{species}) eq 'ARRAY') {
 
-    if ( $bg_counter ) {
-	$species_proc = "SPECIES";
-    }
-    else {
-	$species_proc = "SPECIES_MORPHO";
-    }
+	    die "semicolon separated species output to be implemented\n";
+	    # TO DO...
 
-    foreach my $i (keys %ISA) {
-	printf OUTPUT ("$ISA{$i}{sample_ID},$ISA{$i}{sample_ID}.spp,,$species_proc,,$ISA{$i}{collection_start_date},", $i );
-	my ($sp_species,$sp_onto,$sp_acc);
-	foreach my $j ( @{ $ISA{$i}{Species} } ) {
-	    my ($onto,$acc) = $config->{study_species}{$j} =~ ( /^(\S+?)\:(\S+)/ );
-	    if ( $acc eq "" ) { print "// WARNING: No ontology term for $j $i [$ISA{$i}{collection_ID} : $ISA{$i}{sample_ID}]\n"; }
-	    $sp_species = $sp_species . $j . ";";
-	    $sp_onto    = $sp_onto . $onto . ";";
-	    $sp_acc     = $sp_acc . $acc   . ";";
+	} else {
+	    push @{$sp_tab}, [
+		$row->{sample_ID}, "$row->{sample_ID}.spp", '',
+		$row->{species_identification_method}, '', '',
+		ontology_triplet_lookup($row->{species}, $config->{study_species}, "strict"),
+	    ];
 	}
-	chop ($sp_species);
-	chop ($sp_onto);
-	chop ($sp_acc);
-	print OUTPUT "$sp_species,$sp_onto,$sp_acc\n";
-	undef ($sp_species);
-	undef ($sp_onto);
-	undef ($sp_acc);
     }
-    close OUTPUT;
+    print_table($sp_fh, $sp_tab);
+    close($sp_fh);
 }
 
 
 ##
-## a_ASSAY sheet output
+## a_virus sheet output
 ##
 
 if ( $a_virus ) {
+    print "// Writing $output_directory/a_virus.$output_suffix sheet\n" if ($verbose);
+
+    die "virus sheets handling TO BE REIMPLIMENTED...";
+    # TO DO:
+    # put data for multiple assays (e.g. tests for different viruses) in one row of SAF
+    # possibly using vertical bar as the separator
+
     open (OUTPUT_A, "> ./a_virus.csv");
     open (OUTPUT_P, "> ./p_virus.csv");
 
