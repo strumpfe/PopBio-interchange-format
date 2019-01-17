@@ -1,0 +1,42 @@
+#
+# minimal config file
+#
+# not enough to make a fully functional i_investigation sheet
+# see test-01-full-inv.yaml for that
+#
+
+study_identifier : test_SAF_from_Sarah
+study_title : Aedes data from somewhere
+
+#
+# list the species expected to be identified
+# and their VBsp:nnnnnnn ontology term accessions
+#
+study_species : 
+  Aedes : VBsp:0000253
+  Aedes albopictus : VBsp:0000522
+  Aedes japonicus : VBsp:0003872
+  Aedes triseriatus : VBsp:0001206
+
+#
+# list the expected sexes, with ontology term accessions
+#
+study_sexes :
+  female : PATO:0000383
+  male : PATO:0000384
+
+#
+# list the expected developmental stages, with ontology term accessions
+#
+study_developmental_stages :
+  adult : IDOMAL:0000655
+
+#
+# list any ontology terms used in the data sheet
+# for location_{country,ADM1,ADM2,description}, attractant
+# also the 'pool' term must be provided
+#
+study_terms :
+  pool : EFO:0000663
+  Buncombe : GAZ:00103666
+  light : IRO:0000139

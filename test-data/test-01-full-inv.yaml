@@ -1,0 +1,86 @@
+#
+# fully specified config file
+#
+# contains everything needed to convert SAF files to full ISA-Tab
+#
+
+study_identifier : 2018-test-SAF-from-SAK
+study_title : Aedes data from somewhere
+study_submission_date : 2018
+study_description :
+  Multiple lines are allowed here, and
+  newlines will be replaced by spaces, which
+  is a good thing.  Colons, like this ':'
+  do need to be single quoted.
+
+study_publications :
+  - study_publication_doi : 10.5281/zenodo.1220222
+    study_publication_author_list : Smith J and Walker M
+    study_publication_title : Collection of Aedes species in XYZ
+    study_publication_status : unpublished
+    study_publication_status_term_source_ref : VBcv
+    study_publication_status_term_accession_number : 0000233
+    comments :
+      URL : http://smithandwalkerlab.com/aedes-data
+
+study_protocols :
+  - study_protocol_name : NJLT
+    study_protocol_type : new jersey trap catch
+    study_protocol_type_term_source_ref : IRO
+    study_protocol_type_term_accession_number : 0000031
+    study_protocol_description :
+      Mosquitoes were caught using an XYZ corp New Jersey light trap, that was
+      left under a tree overnight.
+
+  - study_protocol_name : MORPHO
+    study_protocol_type : morphological identification
+    study_protocol_type_term_source_ref : MIRO
+    study_protocol_type_term_accession_number : 30000039
+    study_protocol_description :
+      Mosquitoes were identified using the Smith and Jones (1999) key.
+      Non-mosquitoes were discarded.
+
+study_contacts :
+  - study_person_last_name : Smith
+    study_person_first_name : John
+    study_person_email : john@smith.com
+    study_person_address : Smith's University, Smithson, NM, USA
+
+  - study_person_last_name : Walker
+    study_person_mid_initials : [ H, C ]  # this has to be an array, even for single initials
+    study_person_first_name : Michael
+    study_person_email : mw@foo.com
+    study_person_affiliation : Blue Sky Research Institute
+
+
+
+# list the species expected to be identified
+# and their VBsp:nnnnnnn ontology term accessions
+study_species : 
+  Aedes : VBsp:0000253
+  Aedes albopictus : VBsp:0000522
+  Aedes japonicus : VBsp:0003872
+  Aedes triseriatus : VBsp:0001206
+
+#
+# list the expected sexes, with ontology term accessions
+#
+study_sexes :
+  female : PATO:0000383
+  male : PATO:0000384
+
+#
+# list the expected developmental stages, with ontology term accessions
+#
+study_developmental_stages :
+  adult : IDOMAL:0000655
+
+#
+# list any ontology terms used in the data sheet
+# for location_{country,ADM1,ADM2,description}, attractant
+# also the 'pool' term must be provided
+#
+study_terms :
+  pool : EFO:0000663
+  Buncombe : GAZ:00103666
+  light : IRO:0000139
