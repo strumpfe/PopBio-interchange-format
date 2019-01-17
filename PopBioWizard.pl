@@ -49,7 +49,7 @@ GetOptions (
     "file=s"        => \$file,
     "config=s"      => \$configfile,
     # Process
-    "zeros"         => \$add_zeros,
+    "zeros|zeroes"         => \$add_zeros,
     # Output
     "investigation" => \$i_investigation,  # output the i_investigation.txt sheet (to $output_directory)
     "samples"        => \$s_sample,        # output the s_samples.txt sheet
@@ -90,14 +90,22 @@ print "//  configuration from $configfile\n";
 print "//  data from file $file\n" if ( $file );
 print "\n";
 print "// Study identifier = '$config->{study_identifier}'\n";
+
 my @expected_species = keys %{$config->{study_species}};
 my $max_species_num = scalar @expected_species;
-
 print "// No. of species tested : $max_species_num\n";
-
 foreach my $i (@expected_species) {
     printf ("//  %-30s $config->{study_species}{$i}\n", $i);
 }
+print "\n// Sexes expected:\n";
+foreach my $i (keys %{$config->{study_sexes}}) {
+    printf ("//  %-30s $config->{study_sexes}{$i}\n", $i);
+}
+print "\n// Developmental stages expected:\n";
+foreach my $i (keys %{$config->{study_developmental_stages}}) {
+    printf ("//  %-30s $config->{study_developmental_stages}{$i}\n", $i);
+}
+
 my $ontoterms = keys %{$config->{study_terms}};
 print "\n// No. of ontology terms : $ontoterms\n";
 foreach my $i (sort keys %{$config->{study_terms}}) {
@@ -168,81 +176,79 @@ if ($file) {
 
 if ( $add_zeros ) {
 
-    my %species_seen;		# List of reported species for each collection
-    my %collections2add;	# Hash of collection IDs for which confirmed absence needs to be added
-    my %zero_sample_count;      # counter for the ordinal added to zero sample IDs: <collection_ID>_zero_sample_NNN
+    # collection_ID => species => sex => developmental_stage => count
+    my %collection_species_sex_stage;
+    tie %collection_species_sex_stage, 'Tie::Hash::Indexed'; # preserve collection order
 
-    # Loop through hash to collate list of seen species
-    foreach my $i ( keys %ISA ) {
+    # collection_ID => a 'row' record in %ISA 
+    my %collection_row;
 
-	foreach my $j ( @{ $ISA{$i}{species} } ) {
-	    print "// $j collected on $ISA{$i}{collection_start_date} $ISA{$i}{collection_ID} $ISA{$i}{sample_ID}\n" if ( $moreverbose );
-	    push @{ $species_seen{$ISA{$i}{collection_ID}} }, $j;
-	    $collections2add{$ISA{$i}{collection_ID}} = 1;		# Mark collection for addition
+    # counter for the ordinal added to zero sample IDs: <collection_ID>_zero_sample_NNN
+    my %zero_sample_count;
+
+    # Loop through hash to collate seen species-sex-stage combos
+    # also look out for species eq 'BLANK' rows
+    foreach my $sample_ID ( keys %ISA ) {
+	my $row = $ISA{$sample_ID};
+	my $collection_ID = $row->{collection_ID};
+	my $species = $row->{species};
+
+	if ($species eq 'BLANK') {
+	    # make an empty hash for this $collection_ID so we know it needs
+	    # zero samples creating for it
+	    $collection_species_sex_stage{$collection_ID} = {};
+	} else {
+	    $collection_species_sex_stage{$collection_ID}{$species}{$row->{sex}}{$row->{developmental_stage}}++;
 	}
+	$collection_row{$collection_ID} //= $row;
     }
 
-    # Loop through collections that need augmenting
-    foreach my $i ( sort keys %collections2add ) {
+    # Loop through collections that may need augmenting
+    foreach my $collection_ID ( keys %collection_species_sex_stage ) {
 
-	my @distinct = uniq( @{ $species_seen{$i} } );
-	my @missing  = grep { ! ({ $_, 0 } ~~ @distinct) } @expected_species;
-
-	my $number_spp = scalar @distinct;
-	print "// Collection $i ($number_spp) :: [" . (join ', ', @distinct) . "]\n" if ( $moreverbose );
-
-	# Check whether this collection is complete (has all species been found?)
-	# If true then we don't need to make a new sample for the collection to store confirmed absences
-	next if ($number_spp == $max_species_num);
-
-	# Discard if this is already a blank entry (no mosquitoes collected)
-	if ( $distinct[0] eq "BLANK") {
-	    print "// Not making a zero entry as this is a BLANK collection $i\n\n" if ( $verbose );
-	    next;
+	# loop through all species-sex-stage combinations and figure out which species are missing for each sex-stage combo
+	my %sex_stage_missing_species; # sex => stage => species => 1
+	foreach my $species (@expected_species) {
+	    foreach my $sex (keys %{$config->{study_sexes}}) {
+		foreach my $stage (keys %{$config->{study_developmental_stages}}) {
+		    unless (exists $collection_species_sex_stage{$collection_ID}{$species}{$sex}{$stage}) {
+			$sex_stage_missing_species{$sex}{$stage}{$species} = 1;
+		    }
+		}
+	    }
 	}
 
-	if ( ($missing[0] =~ /genus/ ) or ($missing[0] eq "Culicinae") or ($missing[0] eq "Culicidae") ) {
-	    print "// Not making a zero entry as missing species is a generic term $i\n\n" if ( $verbose );
-	    next;
+	# create new samples in %ISA for the missing species for each sex-stage combo
+	foreach my $sex (keys %sex_stage_missing_species) {
+	    foreach my $stage (keys %{$sex_stage_missing_species{$sex}}) {
+		my @missing_species = keys %{$sex_stage_missing_species{$sex}{$stage}};
+
+		# remove higher taxonomic levels - typically single word names (so look for whitespace)
+                # and also those containing 'genus'
+		@missing_species = grep !/genus/, grep /\s/, @missing_species;
+
+		if (@missing_species) {
+		    my $n_species = @missing_species;
+		    my $new_sample_id = sprintf ("${collection_ID}_zero_sample_%03d", ++$zero_sample_count{$collection_ID});
+		    print "// Created new sample '$new_sample_id' for collection $collection_ID $sex $stage $n_species species\n" if ( $verbose );
+
+		    # do a full copy of the representative row for this collection
+		    my $new_row = $ISA{$new_sample_id} = { %{$collection_row{$collection_ID}} };
+
+		    # set the sample ID
+		    $new_row->{sample_ID} = $new_sample_id;
+		    # set the stage and sex
+		    $new_row->{sex} = $sex;
+		    $new_row->{developmental_stage} = $stage;
+		    # and the species as an arrayref
+		    $new_row->{species} = \@missing_species;
+		    # and of course the sample size
+		    $new_row->{sample_count} = 0;
+		    # and a description
+		    $new_row->{sample_description} = "Record of absence of some species ($sex, $stage)";
+		}
+	    }
 	}
-
-	# Make a new sample for confirmed absences
-	print "// Need to add confirmed absence for collection $i, " . ($max_species_num - $number_spp ) . "\n" if ( $verbose );
-	print "// Collection $i ($number_spp) :: [" . (join ', ', @missing) . "]\n" if ( $moreverbose );
-
-	my $new_sample_id = sprintf ("${i}_zero_sample_%03d", ++$zero_sample_count{$i});
-	print "// Create new sample \"$new_sample_id\" for collection $i\n\n" if ( $verbose );
-
-	# Collection IDs
-	$ISA{$new_sample_id}{collection_ID}           = $i;
-	$ISA{$new_sample_id}{sample_ID}           = $new_sample_id;
-	$ISA{$new_sample_id}{sample_description}  = "Record of absence of some species of mosquito";
-	# Collection date
-	$ISA{$new_sample_id}{collection_start_date}  = $collection_meta{$i}{collection_start_date};  # collection start date
-	$ISA{$new_sample_id}{collection_end_date}    = $collection_meta{$i}{collection_end_date};    # collection end date
-	# Collection site location
-	$ISA{$new_sample_id}{GPS_latitude}           = $collection_meta{$i}{GPS_latitude};   # collection site latitude
-	$ISA{$new_sample_id}{GPS_longitude}          = $collection_meta{$i}{GPS_longitude};   # collection site longitude
-	$ISA{$new_sample_id}{collection_description} = $collection_meta{$i}{collection_description};  # collection event description
-	# Collection trap metadata
-	$ISA{$new_sample_id}{trap_type}              = $collection_meta{$i}{trap_type};        # trap type
-	$ISA{$new_sample_id}{attractant}             = $collection_meta{$i}{attractant};  # trap attractant
-	$ISA{$new_sample_id}{trap_duration}          = $collection_meta{$i}{trap_duration};    # Duration of trap deployment
-	$ISA{$new_sample_id}{trap_number}            = $collection_meta{$i}{trap_number};    # No. of traps deployed
-	# Collected material metadate
-	$ISA{$new_sample_id}{sample_count}           = 0;   # No. of animals collected
-	foreach my $j (@missing) {
-	    next if ( $j eq "Culicidae" );	# Ignore generic species, don't make confirmed zero sample size for generic terms
-	    next if ( $j eq "Culicinae" );      # I wonder if we could generalise this to all single-word taxonomic terms? <<<<<<
-	    next if ( $j =~ /genus/ );
-
-	    push @{ $ISA{$new_sample_id}{species} },  $j;   #
-	}
-
-	# TO SORT OUT STILL:
-	$ISA{$new_sample_id}{species_identification_method} = "SPECIES_MORPHO?????";   	# species identification method
-	$ISA{$new_sample_id}{sex}                           = "female";   		# sex
-	$ISA{$new_sample_id}{developmental_stage}           = "adult";    		# developmental stage
     }
 }
 
@@ -264,13 +270,14 @@ if ( $s_sample ) {
     'Characteristics [sample size (VBcv:0000983)]' ];
 
     foreach my $row (values %ISA) {
+	next if ($row->{species} eq 'BLANK');
 	push @{$s_tab}, [
 	    $config->{study_identifier},
 	    $row->{sample_ID},
 	    $row->{sample_description} // '',
 	    ontology_triplet_lookup("pool", $config->{study_terms}, "strict"),
-	    ontology_triplet_lookup($row->{sex}, $config->{study_terms}, "strict"),
-	    ontology_triplet_lookup($row->{developmental_stage}, $config->{study_terms}, "strict"),
+	    ontology_triplet_lookup($row->{sex}, $config->{study_sexes}, "strict"),
+	    ontology_triplet_lookup($row->{developmental_stage}, $config->{study_developmental_stages}, "strict"),
 	    $row->{sample_count}
 	];
     }
@@ -303,9 +310,7 @@ if ( $a_collection ) {
 
     foreach my $row (values %ISA) {
 
-	if ($row->{trap_number} && $row->{trap_number} > 1) {
-	    die "trap_number values greater than 1 not yet handled in ISA-Tab/Chado\n";
-	}
+	next if ($row->{species} eq 'BLANK');
 
 	push @{$c_tab}, [ $row->{sample_ID}, $row->{collection_ID}, $row->{collection_description} // '',
 			  $row->{trap_type},
@@ -354,10 +359,23 @@ if ( $a_species ) {
     ];
 
     foreach my $row (values %ISA) {
+	next if ($row->{species} eq 'BLANK');
+
 	if (ref($row->{species}) eq 'ARRAY') {
 
-	    die "semicolon separated species output to be implemented\n";
-	    # TO DO...
+	    # do all the ontology lookups for the multiple species
+	    my (@ontos, @accs);
+	    foreach my $species (@{$row->{species}}) {
+		my ($temp_spp, $onto, $acc) = ontology_triplet_lookup($species, $config->{study_species}, "strict");
+		push @ontos, $onto;
+		push @accs, $acc;
+	    }
+
+	    push @{$sp_tab}, [
+		$row->{sample_ID}, "$row->{sample_ID}.spp", '',
+		$row->{species_identification_method}, '', '',
+		join(';', @{$row->{species}}), join(';', @ontos), join(';', @accs),
+	    ];
 
 	} else {
 	    push @{$sp_tab}, [
@@ -423,28 +441,6 @@ exit(0);
 ## get_data_from_file
 ##
 
-# f[ 0] = collection ID
-# f[ 1] = sample ID
-# f[ 2] = collection start date (ISO 8601)
-# f[ 3] = collection end date (ISO 8601)
-# f[ 4] = trap ID
-# f[ 5] = latitude, GPS lat (decimal)
-# f[ 6] = longitude, GPS lon (decimal)
-# f[ 7] = location description (text string, may contain commas)
-# f[ 8] = trap type
-# f[ 9] = attractant
-# f[10] = duration of deployment (number of nights, interger
-# f[11] = number of traps deployed (interger)
-# f[12] = species collected (usually binomial name)
-# f[13] = species identification method (text string)
-# f[14] = collected animals developmental stage (larva,pupa,adult)
-# f[15] = collected animals sex (female|male|mixed)
-# f[16] = number of animals (interger)
-# f[17] = assay type/name
-# f[18] = assay protocol/method
-# f[19] = assay result
-# f[20] = units of measurement (where needed)
-
 ##
 ## primary key is the sample ID
 ##
@@ -466,60 +462,29 @@ sub get_data_from_file {
 	$ISA{$sample_ID} = $input_ref->{$sample_ID};
     }
 
-    foreach my $key (keys %ISA) {
-	my $sample_data = $ISA{$key};
+    # VALIDATION
+    foreach my $sample_ID (keys %ISA) {
+	my $row = $ISA{$sample_ID};
+
+	if ($row->{trap_number} && $row->{trap_number} > 1) {
+	    die "trap_number values greater than 1 not yet handled in ISA-Tab/Chado\n";
+	}
 
 	# TO DO: validate trap_type is in $config hash
+	#        validate GPS coords
+        #        check collection fields are unique per collection_ID
+	#        check species are in $config->{study_species}
+	#        can check sex, attractant, etc fields too
+	#        ...?
 
-	# If trap_type is AWOL set to MIRO:30000045 "catch of live specimens"
-	if ($sample_data->{trap_type} eq "") {
-	    $sample_data->{trap_type} = "LIVE";  # Note: this will just be the value for the Protocol REF column in the a_collection ISA-sheet
-	}
-
-	# handle special case "BLANK" species
-	if ($sample_data->{species} eq "BLANK") {
-	    print "// Assert all species for the Blank collection $sample_data->{collection_ID} $sample_data->{sample_ID}\n" if ($verbose);
-	    $sample_data->{sample_description} = "Record of absence of some species of mosquito";
-	    $sample_data->{species} = [];
-	    foreach my $j (@expected_species) {
-		# Ignore generic species assertion, don't make confirmed zero sample size for generic terms
-		next if ( $j eq "Culicidae" );
-		next if ( $j eq "Culicinae" );
-		next if ( $j =~ /genus/ );
-		push @{ $sample_data->{species} },  $j;
-	    }
-	}
-
-	# Parallel tracking of collection metadata ()
-	#
-	# Lazy overwriting of (presumed) consistent collection metadata
-	for my $column ('collection_start_date', 'collection_end_date', 'GPS_latitude', 'GPS_longitude', 'location_description', 'trap_type', 'attractant', 'trap_duration', 'trap_number') {
-	    $collection_meta{$key}{$column} = $sample_data->{$column};
-	}
     }
 
-    # Assays metadata and result
-    # push @{ $ISA{$f[1]}{Assay} },      "$f[17];$f[18];$f[19];$f[20];";   # assay type
-
-    #
-    # # Calculating the maximum sample ID ordinal
-    # my ( $ord ) = $f[1] =~ ( /sample_(\d+)/ );
-    # if ( $ord > $max_sample_id ) {
-    # 	$max_sample_id = $ord;
-    # }
-
-    # Tracking for debug/reporting
-    # $row_parsed++;
-    # 	}
-    # }
 
     # Report number of rows parsed from the input file
-    # if ( $verbose ) {
-    # 	print "// Parsed file      : $file\n";
-    # 	print "// No. rows in file : $row_count\n";
-    # 	print "// No. rows parsed  : $row_parsed\n";
-    # 	print "// Max. sample ID   : $max_sample_id\n";
-    # }
+    if ( $verbose ) {
+    	print "// Parsed file      : $file\n";
+    	printf "// No. rows parsed  : %d\n", scalar keys %ISA;
+    }
 }
 
 
