@@ -225,7 +225,7 @@ if ( $add_zeros ) {
 
 		# remove higher taxonomic levels - typically single word names (so look for whitespace)
                 # and also those containing 'genus'
-		@missing_species = grep !/genus/, grep /\s/, @missing_species;
+		@missing_species = grep !/\bgenus\b/, grep /\s/, @missing_species;
 
 		if (@missing_species) {
 		    my $n_species = @missing_species;
