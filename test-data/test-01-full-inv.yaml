@@ -24,7 +24,7 @@ study_publications :
       URL : http://smithandwalkerlab.com/aedes-data
 
 study_protocols :
-  - study_protocol_name : NJLT
+  - study_protocol_name : LIGHT_TRAP
     study_protocol_type : new jersey trap catch
     study_protocol_type_term_source_ref : IRO
     study_protocol_type_term_accession_number : 0000031
