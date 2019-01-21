@@ -298,14 +298,15 @@ if ( $a_collection ) {
     my $c_tab = []; # output data structure reference to array of arrays
     open(my $c_fh, ">$output_directory/a_collection.$output_suffix") || die;
 
-    push @{$c_tab}, [ 'Sample Name', 'Assay Name', 'Description',
-              'Protocol REF', 'Performer', 'Date',
-              'Characteristics [Collection duration in days (VBcv:0001009)]',
-              'Comment [Trap ID]',
-              'Characteristics [Attractant (IRO:0000034)]', 'Term Source Ref', 'Term Accession Number',
-              'Characteristics [Collection site (VBcv:0000831)]', 'Term Source Ref', 'Term Accession Number',
-              'Characteristics [Collection site latitude (VBcv:0000817)]',
-              'Characteristics [Collection site longitude (VBcv:0000816)]'
+    push @{$c_tab}, [
+        'Sample Name', 'Assay Name', 'Description',
+        'Protocol REF', 'Performer', 'Date',
+        'Characteristics [Collection duration in days (VBcv:0001009)]',
+        'Comment [Trap ID]',
+        'Characteristics [Attractant (IRO:0000034)]', 'Term Source Ref', 'Term Accession Number',
+        'Characteristics [Collection site (VBcv:0000831)]', 'Term Source Ref', 'Term Accession Number',
+        'Characteristics [Collection site latitude (VBcv:0000817)]',
+        'Characteristics [Collection site longitude (VBcv:0000816)]'
     ];
 
     foreach my $row (values %ISA) {
@@ -418,8 +419,7 @@ if ( $a_virus ) {
 
             if ( $assay_result eq "Positive") {
                 printf OUTPUT_P ("$ISA{$i}{sample_ID}.${assay_type},\"${assay_type} infected\",\"arthropod infection status\",VSMO,0000009,${assay_type},VSMO,0000535,present,PATO,0000467\n");
-            }
-            elsif ( $assay_result eq "Negative") {
+            } elsif ( $assay_result eq "Negative") {
                 printf OUTPUT_P ("$ISA{$i}{sample_ID}.${assay_type},\"${assay_type} infection not detected\",\"arthropod infection status\",VSMO,0000009,${assay_type},VSMO,0000882,absent,PATO,0000462\n");
             }
         }
@@ -470,7 +470,7 @@ sub get_data_from_file {
 
         # TO DO: validate trap_type is in $config hash
         #        validate GPS coords
-            #        check collection fields are unique per collection_ID
+        #        check collection fields are unique per collection_ID
         #        check species are in $config->{study_species}
         #        can check sex, attractant, etc fields too
         #        ...?
@@ -538,13 +538,11 @@ sub ontology_triplet_lookup {
             } elsif ($verbose) {
                 warn "malformed ontology term accession '$term_acc' in config file\n";
             }
-
         } elsif ($strict) {
             die "ontology term '$value' not defined in config file\n";
         } elsif ($verbose) {
             warn "ontology term '$value' not defined in config file\n";
         }
-
     } elsif ($strict) {
         die "empty value passed to ontology_triplet_lookup()\n";
     } elsif ($verbose) {
