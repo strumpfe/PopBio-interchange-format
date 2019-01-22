@@ -310,8 +310,7 @@ if ( $a_collection ) {
     ];
 
     foreach my $row (values %ISA) {
-
-	next if ($row->{species} eq 'BLANK');
+        next if ($row->{species} eq 'BLANK');
 
         ### process the placename info
         # Do the following, pending GAZ retirement...
@@ -324,7 +323,7 @@ if ( $a_collection ) {
         foreach my $place ($row->{location_description}, $row->{location_ADM2},
                            $row->{location_ADM1}, $row->{location_country}) {
             next unless defined $place && length($place);
-            
+
             my ($name, $onto, $acc) = ontology_triplet_lookup($place, $config->{study_terms}, 'relaxed');
             if ($onto && length($acc)) {
                 ($location_name, $location_onto, $location_acc) = ($place, $onto, $acc);
@@ -335,21 +334,22 @@ if ( $a_collection ) {
         warn sprintf "WARNING: couldn't find placename ontology term for descrip: '%s' ADM2: '%s' ADM1: '%s' country: '%s'\n",
                      $row->{location_description} // '', $row->{location_ADM2} // '', $row->{location_ADM1} // '', $row->{location_ADM1} // ''
               if ($tries && !length($location_acc)); 
-        
-	push @{$c_tab}, [ $row->{sample_ID}, $row->{collection_ID}, $row->{collection_description} // '',
-			  $row->{trap_type},
-			  '', # blank Performer
 
-			  # TO DO: calculate difference between start and end dates?
-			  $row->{collection_start_date},
-			  $row->{trap_duration} // '',
-			  $row->{trap_ID} // '',
-			  ontology_triplet_lookup($row->{attractant}, $config->{study_terms}, 'relaxed'),
-                          $location_name, $location_onto, $location_acc,
-			  # Lat and long easy
-			  $row->{GPS_latitude}, $row->{GPS_longitude},
-	];
-	# TO DO: collection site coordinates qualifier code or ontology term
+        push @{$c_tab}, [
+            $row->{sample_ID}, $row->{collection_ID}, $row->{collection_description} // '',
+            $row->{trap_type},
+            '', # blank Performer
+
+            # TO DO: calculate difference between start and end dates?
+            $row->{collection_start_date},
+            $row->{trap_duration} // '',
+            $row->{trap_ID} // '',
+            ontology_triplet_lookup($row->{attractant}, $config->{study_terms}, 'relaxed'),
+            $location_name, $location_onto, $location_acc,
+            # Lat and long easy
+            $row->{GPS_latitude}, $row->{GPS_longitude},
+        ];
+        # TO DO: collection site coordinates qualifier code or ontology term
 
     }
     print_table($c_fh, $c_tab);
