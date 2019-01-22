@@ -312,6 +312,29 @@ if ( $a_collection ) {
 
 	next if ($row->{species} eq 'BLANK');
 
+        ### process the placename info
+        # Do the following, pending GAZ retirement...
+        # try these in the following order
+        # location_description>location_ADM2>location_ADM1>location_country
+        # first GAZ term found in study_terms is put into the "Collection site" column
+        # if placenames are provided but no GAZ term found, then a warning will be emitted
+        my ($location_name, $location_onto, $location_acc) = ('', '', '');
+        my $tries = 0;
+        foreach my $place ($row->{location_description}, $row->{location_ADM2},
+                           $row->{location_ADM1}, $row->{location_country}) {
+            next unless defined $place && length($place);
+            
+            my ($name, $onto, $acc) = ontology_triplet_lookup($place, $config->{study_terms}, 'relaxed');
+            if ($onto && length($acc)) {
+                ($location_name, $location_onto, $location_acc) = ($place, $onto, $acc);
+                last;
+            }
+            $tries++;
+        }
+        warn sprintf "WARNING: couldn't find placename ontology term for descrip: '%s' ADM2: '%s' ADM1: '%s' country: '%s'\n",
+                     $row->{location_description} // '', $row->{location_ADM2} // '', $row->{location_ADM1} // '', $row->{location_ADM1} // ''
+              if ($tries && !length($location_acc)); 
+        
 	push @{$c_tab}, [ $row->{sample_ID}, $row->{collection_ID}, $row->{collection_description} // '',
 			  $row->{trap_type},
 			  '', # blank Performer
@@ -321,16 +344,7 @@ if ( $a_collection ) {
 			  $row->{trap_duration} // '',
 			  $row->{trap_ID} // '',
 			  ontology_triplet_lookup($row->{attractant}, $config->{study_terms}, 'relaxed'),
-
-			  # Do the following, pending GAZ retirement...
-			  # temporary handling of "Collection site" column using the first available of
-			  # location_ADM2>location_ADM1>location_country>location_description
-                          # and looking up GAZ terms in the study_terms lookup if available
-			  ontology_triplet_lookup($row->{location_ADM2} || 
-						  $row->{location_ADM1} ||
-						  $row->{location_country} ||
-						  $row->{location_description}, $config->{study_terms}, 'relaxed'),
-
+                          $location_name, $location_onto, $location_acc,
 			  # Lat and long easy
 			  $row->{GPS_latitude}, $row->{GPS_longitude},
 	];
