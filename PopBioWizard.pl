@@ -266,7 +266,8 @@ if ( $s_sample ) {
         'Material Type', 'Term Source Ref', 'Term Accession Number',
         'Characteristics [sex (EFO:0000695)]', 'Term Source Ref', 'Term Accession Number',
         'Characteristics [developmental stage (EFO:0000399)]', 'Term Source Ref', 'Term Accession Number',
-        'Characteristics [sample size (VBcv:0000983)]'
+        'Characteristics [sample size (VBcv:0000983)]',
+        'Comment [sample_comment]'
     ];
 
     foreach my $row (values %ISA) {
@@ -278,7 +279,8 @@ if ( $s_sample ) {
             ontology_triplet_lookup("pool", $config->{study_terms}, "strict"),
             ontology_triplet_lookup($row->{sex}, $config->{study_sexes}, "strict"),
             ontology_triplet_lookup($row->{developmental_stage}, $config->{study_developmental_stages}, "strict"),
-            $row->{sample_count}
+            $row->{sample_count},
+            $row->{sample_comment} // '',
         ];
     }
     print_table($s_fh, $s_tab);
@@ -302,11 +304,13 @@ if ( $a_collection ) {
         'Sample Name', 'Assay Name', 'Description',
         'Protocol REF', 'Performer', 'Date',
         'Characteristics [Collection duration in days (VBcv:0001009)]',
+        'Comment [collection_comment]',
         'Comment [Trap ID]',
         'Characteristics [Attractant (IRO:0000034)]', 'Term Source Ref', 'Term Accession Number',
         'Characteristics [Collection site (VBcv:0000831)]', 'Term Source Ref', 'Term Accession Number',
         'Characteristics [Collection site latitude (VBcv:0000817)]',
-        'Characteristics [Collection site longitude (VBcv:0000816)]'
+        'Characteristics [Collection site longitude (VBcv:0000816)]',
+        'Comment [collection site coordinates]',
     ];
 
     foreach my $row (values %ISA) {
@@ -343,11 +347,13 @@ if ( $a_collection ) {
             # TO DO: calculate difference between start and end dates?
             $row->{collection_start_date},
             $row->{trap_duration} // '',
+            $row->{collection_comment} // '',
             $row->{trap_ID} // '',
             ontology_triplet_lookup($row->{attractant}, $config->{study_terms}, 'relaxed'),
             $location_name, $location_onto, $location_acc,
             # Lat and long easy
             $row->{GPS_latitude}, $row->{GPS_longitude},
+            $row->{GPS_qualifier} // '',
         ];
         # TO DO: collection site coordinates qualifier code or ontology term
 
@@ -372,6 +378,7 @@ if ( $a_species ) {
         'Sample Name', 'Assay Name', 'Description',
         'Protocol REF', 'Performer', 'Date',
         'Characteristics [species assay result (VBcv:0000961)]', 'Term Source Ref', 'Term Accession Number',
+        'Comment [species_comment]'
     ];
 
     foreach my $row (values %ISA) {
@@ -390,12 +397,14 @@ if ( $a_species ) {
                 $row->{sample_ID}, "$row->{sample_ID}.spp", '',
                 $row->{species_identification_method}, '', '',
                 join(';', @{$row->{species}}), join(';', @ontos), join(';', @accs),
+                $row->{species_comment} // '',
             ];
         } else {
             push @{$sp_tab}, [
                 $row->{sample_ID}, "$row->{sample_ID}.spp", '',
                 $row->{species_identification_method}, '', '',
                 ontology_triplet_lookup($row->{species}, $config->{study_species}, "strict"),
+                $row->{species_comment} // '',
             ];
         }
     }

@@ -14,6 +14,7 @@ collection_end_date|ISO 8601 date format (YYYY-MM-DD)|Mandatory|Date at which tr
 trap_ID|string|Advisory|Internal trap ID for the collection, may be used as part of processing for distinct collection events
 GPS_latitude|GPS decimal degrees|Mandatory|Latitude for collection site, max. 6 decimal places
 GPS_longitude|GPS decimal degrees|Mandatory|Longitude for collection site, max. 6 decimal places
+GPS_qualifier|string|Optional|controlled vocabulary/ontology term to describe source and precision of GPS coordinates
 location_description|string|Optional|Collection location description e.g. Orlando
 location_ADM2|string|Optional|Administrative level 2 for collection e.g. Orange County
 location_ADM1|string|Optional|Administrative level 1 for collection e.g. Florida
@@ -27,3 +28,6 @@ species_identification_method|string|Mandatory|Protocol for asserting species id
 developmental_stage|string|Mandatory|developmental stage e.g. adult
 sex|string|Mandatory|sex of specimens e.g. female/male/mixed
 sample_count|integer|Mandatory|count of specimens from collection
+collection_comment|string|Optional|free text comment about the collection site or event
+sample_comment|string|Optional|free text comment about the sample material
+species_comment|string|Optional|free text comments about the species identification process
