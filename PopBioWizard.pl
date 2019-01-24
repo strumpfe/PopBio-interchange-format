@@ -40,7 +40,7 @@ my $all_regular_sheets;
 #---------------------------------------------------------#
 
 #---------------------------------------------------------#
-GetOptions (
+GetOptions(
     # Misc
     "verbose"       => \$verbose,
     "verboser"      => \$moreverbose,
@@ -59,7 +59,7 @@ GetOptions (
     "isatab"        => \$all_regular_sheets, # shortcut for -investigation -samples -collection --species --output_delimiter TAB
     "output-delimiter|delimiter=s" => \$output_delimiter,
     "output-directory|directory=s" => \$output_directory,
-    );
+);
 #---------------------------------------------------------#
 
 die "must provide --file <input_filename> and --config <config_filename> options\n" unless ($file && $configfile);
@@ -125,26 +125,25 @@ if ($i_investigation) {
 
     # fill in STUDY DESIGN DESCRIPTORS section if not provided already in config file
     unless ($config->{study_designs}) {
-	$config->{study_designs} = [
-	    { study_design_type => 'observational design',
-	      study_design_type_term_source_ref => 'EFO',
-	      study_design_type_term_accession_number => '0000629' },
-	    { study_design_type => 'strain or line design',
-	      study_design_type_term_source_ref => 'EFO',
-	      study_design_type_term_accession_number => '0001754' },
-	    ];
+    $config->{study_designs} = [
+        { study_design_type => 'observational design',
+          study_design_type_term_source_ref => 'EFO',
+          study_design_type_term_accession_number => '0000629' },
+        { study_design_type => 'strain or line design',
+          study_design_type_term_source_ref => 'EFO',
+          study_design_type_term_accession_number => '0001754' },
+        ];
     }
 
     # fill in STUDY ASSAYS section if not provided already in config file
     unless ($config->{study_assays}) {
-	push @{$config->{study_assays}}, { study_assay_measurement_type => 'field collection',
-					   study_assay_file_name => "a_collection.$output_suffix" } if ($a_collection);
-	push @{$config->{study_assays}}, { study_assay_measurement_type => 'species identification assay',
-					   study_assay_file_name => "a_species.$output_suffix" } if ($a_species);
-	push @{$config->{study_assays}}, { study_assay_measurement_type => 'phenotype assay',
-					   study_assay_file_name => "a_virus.$output_suffix" } if ($a_virus);
+        push @{$config->{study_assays}}, { study_assay_measurement_type => 'field collection',
+            study_assay_file_name => "a_collection.$output_suffix" } if ($a_collection);
+        push @{$config->{study_assays}}, { study_assay_measurement_type => 'species identification assay',
+            study_assay_file_name => "a_species.$output_suffix" } if ($a_species);
+        push @{$config->{study_assays}}, { study_assay_measurement_type => 'phenotype assay',
+            study_assay_file_name => "a_virus.$output_suffix" } if ($a_virus);
     }
-
 
     # now write the i_investigation sheet using data in $config (any additional non-ISA-Tab data will be ignored)
     $isa_parser->write( { ontologies => [], studies => [ $config ] } );
@@ -175,7 +174,6 @@ if ($file) {
 ##
 
 if ( $add_zeros ) {
-
     # collection_ID => species => sex => developmental_stage => count
     my %collection_species_sex_stage;
     tie %collection_species_sex_stage, 'Tie::Hash::Indexed'; # preserve collection order
@@ -189,66 +187,66 @@ if ( $add_zeros ) {
     # Loop through hash to collate seen species-sex-stage combos
     # also look out for species eq 'BLANK' rows
     foreach my $sample_ID ( keys %ISA ) {
-	my $row = $ISA{$sample_ID};
-	my $collection_ID = $row->{collection_ID};
-	my $species = $row->{species};
+        my $row = $ISA{$sample_ID};
+        my $collection_ID = $row->{collection_ID};
+        my $species = $row->{species};
 
-	if ($species eq 'BLANK') {
-	    # make an empty hash for this $collection_ID so we know it needs
-	    # zero samples creating for it
-	    $collection_species_sex_stage{$collection_ID} = {};
-	} else {
-	    $collection_species_sex_stage{$collection_ID}{$species}{$row->{sex}}{$row->{developmental_stage}}++;
-	}
-	$collection_row{$collection_ID} //= $row;
+        if ($species eq 'BLANK') {
+            # make an empty hash for this $collection_ID so we know it needs
+            # zero samples creating for it
+            $collection_species_sex_stage{$collection_ID} = {};
+        } else {
+            $collection_species_sex_stage{$collection_ID}{$species}{$row->{sex}}{$row->{developmental_stage}}++;
+        }
+
+        $collection_row{$collection_ID} //= $row;
     }
 
     # Loop through collections that may need augmenting
     foreach my $collection_ID ( keys %collection_species_sex_stage ) {
+        # loop through all species-sex-stage combinations and figure out which species are missing for each sex-stage combo
+        my %sex_stage_missing_species; # sex => stage => species => 1
+        foreach my $species (@expected_species) {
+            foreach my $sex (keys %{$config->{study_sexes}}) {
+                foreach my $stage (keys %{$config->{study_developmental_stages}}) {
+                    unless (exists $collection_species_sex_stage{$collection_ID}{$species}{$sex}{$stage}) {
+                        $sex_stage_missing_species{$sex}{$stage}{$species} = 1;
+                    }
+                }
+            }
+        }
 
-	# loop through all species-sex-stage combinations and figure out which species are missing for each sex-stage combo
-	my %sex_stage_missing_species; # sex => stage => species => 1
-	foreach my $species (@expected_species) {
-	    foreach my $sex (keys %{$config->{study_sexes}}) {
-		foreach my $stage (keys %{$config->{study_developmental_stages}}) {
-		    unless (exists $collection_species_sex_stage{$collection_ID}{$species}{$sex}{$stage}) {
-			$sex_stage_missing_species{$sex}{$stage}{$species} = 1;
-		    }
-		}
-	    }
-	}
+        # create new samples in %ISA for the missing species for each sex-stage combo
+        foreach my $sex (keys %sex_stage_missing_species) {
+            foreach my $stage (keys %{$sex_stage_missing_species{$sex}}) {
+                my @missing_species = keys %{$sex_stage_missing_species{$sex}{$stage}};
 
-	# create new samples in %ISA for the missing species for each sex-stage combo
-	foreach my $sex (keys %sex_stage_missing_species) {
-	    foreach my $stage (keys %{$sex_stage_missing_species{$sex}}) {
-		my @missing_species = keys %{$sex_stage_missing_species{$sex}{$stage}};
-
-		# remove higher taxonomic levels - typically single word names (so look for whitespace)
+                # remove higher taxonomic levels - typically single word names (so look for whitespace)
                 # and also those containing 'genus'
-		@missing_species = grep !/\bgenus\b/, grep /\s/, @missing_species;
+                @missing_species = grep !/\bgenus\b/, grep /\s/, @missing_species;
 
-		if (@missing_species) {
-		    my $n_species = @missing_species;
-		    my $new_sample_id = sprintf ("${collection_ID}_zero_sample_%03d", ++$zero_sample_count{$collection_ID});
-		    print "// Created new sample '$new_sample_id' for collection $collection_ID $sex $stage $n_species species\n" if ( $verbose );
+                if (@missing_species) {
+                    my $n_species = @missing_species;
+                    my $new_sample_id = sprintf ("${collection_ID}_zero_sample_%03d", ++$zero_sample_count{$collection_ID});
+                    print "// Created new sample '$new_sample_id' for collection $collection_ID $sex $stage $n_species species\n" if ( $verbose );
 
-		    # do a full copy of the representative row for this collection
-		    my $new_row = $ISA{$new_sample_id} = { %{$collection_row{$collection_ID}} };
+                    # do a full copy of the representative row for this collection
+                    my $new_row = $ISA{$new_sample_id} = { %{$collection_row{$collection_ID}} };
 
-		    # set the sample ID
-		    $new_row->{sample_ID} = $new_sample_id;
-		    # set the stage and sex
-		    $new_row->{sex} = $sex;
-		    $new_row->{developmental_stage} = $stage;
-		    # and the species as an arrayref
-		    $new_row->{species} = \@missing_species;
-		    # and of course the sample size
-		    $new_row->{sample_count} = 0;
-		    # and a description
-		    $new_row->{sample_description} = "Record of absence of some species ($sex, $stage)";
-		}
-	    }
-	}
+                    # set the sample ID
+                    $new_row->{sample_ID} = $new_sample_id;
+                    # set the stage and sex
+                    $new_row->{sex} = $sex;
+                    $new_row->{developmental_stage} = $stage;
+                    # and the species as an arrayref
+                    $new_row->{species} = \@missing_species;
+                    # and of course the sample size
+                    $new_row->{sample_count} = 0;
+                    # and a description
+                    $new_row->{sample_description} = "Record of absence of some species ($sex, $stage)";
+                }
+            }
+        }
     }
 }
 
@@ -263,23 +261,25 @@ if ( $s_sample ) {
 
     open(my $s_fh, ">$output_directory/s_samples.$output_suffix") || die;
 
-    push @{$s_tab}, [ 'Source Name', 'Sample Name', 'Description',
-    'Material Type', 'Term Source Ref', 'Term Accession Number',
-    'Characteristics [sex (EFO:0000695)]', 'Term Source Ref', 'Term Accession Number',
-    'Characteristics [developmental stage (EFO:0000399)]', 'Term Source Ref', 'Term Accession Number',
-    'Characteristics [sample size (VBcv:0000983)]' ];
+    push @{$s_tab}, [
+        'Source Name', 'Sample Name', 'Description',
+        'Material Type', 'Term Source Ref', 'Term Accession Number',
+        'Characteristics [sex (EFO:0000695)]', 'Term Source Ref', 'Term Accession Number',
+        'Characteristics [developmental stage (EFO:0000399)]', 'Term Source Ref', 'Term Accession Number',
+        'Characteristics [sample size (VBcv:0000983)]'
+    ];
 
     foreach my $row (values %ISA) {
-	next if ($row->{species} eq 'BLANK');
-	push @{$s_tab}, [
-	    $config->{study_identifier},
-	    $row->{sample_ID},
-	    $row->{sample_description} // '',
-	    ontology_triplet_lookup("pool", $config->{study_terms}, "strict"),
-	    ontology_triplet_lookup($row->{sex}, $config->{study_sexes}, "strict"),
-	    ontology_triplet_lookup($row->{developmental_stage}, $config->{study_developmental_stages}, "strict"),
-	    $row->{sample_count}
-	];
+        next if ($row->{species} eq 'BLANK');
+        push @{$s_tab}, [
+            $config->{study_identifier},
+            $row->{sample_ID},
+            $row->{sample_description} // '',
+            ontology_triplet_lookup("pool", $config->{study_terms}, "strict"),
+            ontology_triplet_lookup($row->{sex}, $config->{study_sexes}, "strict"),
+            ontology_triplet_lookup($row->{developmental_stage}, $config->{study_developmental_stages}, "strict"),
+            $row->{sample_count}
+        ];
     }
     print_table($s_fh, $s_tab);
     close($s_fh);
@@ -298,44 +298,59 @@ if ( $a_collection ) {
     my $c_tab = []; # output data structure reference to array of arrays
     open(my $c_fh, ">$output_directory/a_collection.$output_suffix") || die;
 
-    push @{$c_tab}, [ 'Sample Name', 'Assay Name', 'Description',
-		      'Protocol REF', 'Performer', 'Date',
-		      'Characteristics [Collection duration in days (VBcv:0001009)]',
-		      'Comment [Trap ID]',
-		      'Characteristics [Attractant (IRO:0000034)]', 'Term Source Ref', 'Term Accession Number',
-		      'Characteristics [Collection site (VBcv:0000831)]', 'Term Source Ref', 'Term Accession Number',
-		      'Characteristics [Collection site latitude (VBcv:0000817)]',
-		      'Characteristics [Collection site longitude (VBcv:0000816)]'
+    push @{$c_tab}, [
+        'Sample Name', 'Assay Name', 'Description',
+        'Protocol REF', 'Performer', 'Date',
+        'Characteristics [Collection duration in days (VBcv:0001009)]',
+        'Comment [Trap ID]',
+        'Characteristics [Attractant (IRO:0000034)]', 'Term Source Ref', 'Term Accession Number',
+        'Characteristics [Collection site (VBcv:0000831)]', 'Term Source Ref', 'Term Accession Number',
+        'Characteristics [Collection site latitude (VBcv:0000817)]',
+        'Characteristics [Collection site longitude (VBcv:0000816)]'
     ];
 
     foreach my $row (values %ISA) {
+        next if ($row->{species} eq 'BLANK');
 
-	next if ($row->{species} eq 'BLANK');
+        ### process the placename info
+        # Do the following, pending GAZ retirement...
+        # try these in the following order
+        # location_description>location_ADM2>location_ADM1>location_country
+        # first GAZ term found in study_terms is put into the "Collection site" column
+        # if placenames are provided but no GAZ term found, then a warning will be emitted
+        my ($location_name, $location_onto, $location_acc) = ('', '', '');
+        my $tries = 0;
+        foreach my $place ($row->{location_description}, $row->{location_ADM2},
+                           $row->{location_ADM1}, $row->{location_country}) {
+            next unless defined $place && length($place);
 
-	push @{$c_tab}, [ $row->{sample_ID}, $row->{collection_ID}, $row->{collection_description} // '',
-			  $row->{trap_type},
-			  '', # blank Performer
+            my ($name, $onto, $acc) = ontology_triplet_lookup($place, $config->{study_terms}, 'relaxed');
+            if ($onto && length($acc)) {
+                ($location_name, $location_onto, $location_acc) = ($place, $onto, $acc);
+                last;
+            }
+            $tries++;
+        }
+        warn sprintf "WARNING: couldn't find placename ontology term for descrip: '%s' ADM2: '%s' ADM1: '%s' country: '%s'\n",
+                     $row->{location_description} // '', $row->{location_ADM2} // '', $row->{location_ADM1} // '', $row->{location_ADM1} // ''
+              if ($tries && !length($location_acc)); 
 
-			  # TO DO: calculate difference between start and end dates?
-			  $row->{collection_start_date},
-			  $row->{trap_duration} // '',
-			  $row->{trap_ID} // '',
-			  ontology_triplet_lookup($row->{attractant}, $config->{study_terms}, 'relaxed'),
+        push @{$c_tab}, [
+            $row->{sample_ID}, $row->{collection_ID}, $row->{collection_description} // '',
+            $row->{trap_type},
+            '', # blank Performer
 
-			  # Do the following, pending GAZ retirement...
-			  # temporary handling of "Collection site" column using the first available of
-			  # location_ADM2>location_ADM1>location_country>location_description
-                          # and looking up GAZ terms in the study_terms lookup if available
-			  ontology_triplet_lookup($row->{location_ADM2} || 
-						  $row->{location_ADM1} ||
-						  $row->{location_country} ||
-						  $row->{location_description}, $config->{study_terms}, 'relaxed'),
+            # TO DO: calculate difference between start and end dates?
+            $row->{collection_start_date},
+            $row->{trap_duration} // '',
+            $row->{trap_ID} // '',
+            ontology_triplet_lookup($row->{attractant}, $config->{study_terms}, 'relaxed'),
+            $location_name, $location_onto, $location_acc,
+            # Lat and long easy
+            $row->{GPS_latitude}, $row->{GPS_longitude},
+        ];
+        # TO DO: collection site coordinates qualifier code or ontology term
 
-			  # Lat and long easy
-			  $row->{GPS_latitude}, $row->{GPS_longitude},
-	];
-	# TO DO: collection site coordinates qualifier code or ontology term
-	
     }
     print_table($c_fh, $c_tab);
     close($c_fh);
@@ -353,37 +368,36 @@ if ( $a_species ) {
     my $sp_tab = []; # output data structure reference to array of arrays
     open(my $sp_fh, ">$output_directory/a_species.$output_suffix") || die;
 
-    push @{$sp_tab}, [ 'Sample Name', 'Assay Name', 'Description',
-		       'Protocol REF', 'Performer', 'Date',
-		       'Characteristics [species assay result (VBcv:0000961)]', 'Term Source Ref', 'Term Accession Number',
+    push @{$sp_tab}, [
+        'Sample Name', 'Assay Name', 'Description',
+        'Protocol REF', 'Performer', 'Date',
+        'Characteristics [species assay result (VBcv:0000961)]', 'Term Source Ref', 'Term Accession Number',
     ];
 
     foreach my $row (values %ISA) {
-	next if ($row->{species} eq 'BLANK');
+        next if ($row->{species} eq 'BLANK');
 
-	if (ref($row->{species}) eq 'ARRAY') {
+        if (ref($row->{species}) eq 'ARRAY') {
+            # do all the ontology lookups for the multiple species
+            my (@ontos, @accs);
+            foreach my $species (@{$row->{species}}) {
+                my ($temp_spp, $onto, $acc) = ontology_triplet_lookup($species, $config->{study_species}, "strict");
+                push @ontos, $onto;
+                push @accs, $acc;
+            }
 
-	    # do all the ontology lookups for the multiple species
-	    my (@ontos, @accs);
-	    foreach my $species (@{$row->{species}}) {
-		my ($temp_spp, $onto, $acc) = ontology_triplet_lookup($species, $config->{study_species}, "strict");
-		push @ontos, $onto;
-		push @accs, $acc;
-	    }
-
-	    push @{$sp_tab}, [
-		$row->{sample_ID}, "$row->{sample_ID}.spp", '',
-		$row->{species_identification_method}, '', '',
-		join(';', @{$row->{species}}), join(';', @ontos), join(';', @accs),
-	    ];
-
-	} else {
-	    push @{$sp_tab}, [
-		$row->{sample_ID}, "$row->{sample_ID}.spp", '',
-		$row->{species_identification_method}, '', '',
-		ontology_triplet_lookup($row->{species}, $config->{study_species}, "strict"),
-	    ];
-	}
+            push @{$sp_tab}, [
+                $row->{sample_ID}, "$row->{sample_ID}.spp", '',
+                $row->{species_identification_method}, '', '',
+                join(';', @{$row->{species}}), join(';', @ontos), join(';', @accs),
+            ];
+        } else {
+            push @{$sp_tab}, [
+                $row->{sample_ID}, "$row->{sample_ID}.spp", '',
+                $row->{species_identification_method}, '', '',
+                ontology_triplet_lookup($row->{species}, $config->{study_species}, "strict"),
+            ];
+        }
     }
     print_table($sp_fh, $sp_tab);
     close($sp_fh);
@@ -410,22 +424,18 @@ if ( $a_virus ) {
     print OUTPUT_P "Assay Name,Phenotype Name,Observable,Term Source Ref,Term Accession Number,Attribute,Term Source Ref,Term Accession Number,Value,Term Source Ref,Term Accession Number\n";
 
     foreach my $i (keys %ISA) {
+        foreach my $j (@{ $ISA{$i}{Assay} }) {
+            my ($assay_type,$assay_proc,$assay_result,$assay_units) = split /;/, $j;
+            print "// $ISA{$i}{sample_ID} [$assay_type,$assay_proc,$assay_result,$assay_units] $j\n" if ( $moreverbose );
 
-	foreach my $j (@{ $ISA{$i}{Assay} }) {
-	    my ($assay_type,$assay_proc,$assay_result,$assay_units) = split /;/, $j;
-	    print "// $ISA{$i}{sample_ID} [$assay_type,$assay_proc,$assay_result,$assay_units] $j\n" if ( $moreverbose );
+            printf OUTPUT_A ("$ISA{$i}{sample_ID},$ISA{$i}{sample_ID}.${assay_type},,${assay_type},p_virus.txt\n", $i );
 
-
-	    printf OUTPUT_A ("$ISA{$i}{sample_ID},$ISA{$i}{sample_ID}.${assay_type},,${assay_type},p_virus.txt\n", $i );
-
-	    if ( $assay_result eq "Positive") {
-		printf OUTPUT_P ("$ISA{$i}{sample_ID}.${assay_type},\"${assay_type} infected\",\"arthropod infection status\",VSMO,0000009,${assay_type},VSMO,0000535,present,PATO,0000467\n");
-
-	    }
-	    elsif ( $assay_result eq "Negative") {
-		printf OUTPUT_P ("$ISA{$i}{sample_ID}.${assay_type},\"${assay_type} infection not detected\",\"arthropod infection status\",VSMO,0000009,${assay_type},VSMO,0000882,absent,PATO,0000462\n");
-	    }
-	}
+            if ( $assay_result eq "Positive") {
+                printf OUTPUT_P ("$ISA{$i}{sample_ID}.${assay_type},\"${assay_type} infected\",\"arthropod infection status\",VSMO,0000009,${assay_type},VSMO,0000535,present,PATO,0000467\n");
+            } elsif ( $assay_result eq "Negative") {
+                printf OUTPUT_P ("$ISA{$i}{sample_ID}.${assay_type},\"${assay_type} infection not detected\",\"arthropod infection status\",VSMO,0000009,${assay_type},VSMO,0000882,absent,PATO,0000462\n");
+            }
+        }
     }
     close OUTPUT_A;
     close OUTPUT_P;
@@ -447,10 +457,11 @@ exit(0);
 
 sub get_data_from_file {
     # use the object oriented interface to get the sample_IDs in order
-    my $hashify = Text::CSV::Hashify->new( { file => $file,
-					     key => 'sample_ID',
-					     sep_char => $file =~ /\.csv$/ ? ',' : "\t",
-					   } );
+    my $hashify = Text::CSV::Hashify->new({
+        file => $file,
+        key => 'sample_ID',
+        sep_char => $file =~ /\.csv$/ ? ',' : "\t",
+    });
 
     my $input_ref = $hashify->all;
     my $sample_IDs = $hashify->keys;
@@ -459,31 +470,30 @@ sub get_data_from_file {
 
     # copy over the data into global %ISA - using ordered sample_IDs
     foreach my $sample_ID (@$sample_IDs) {
-	$ISA{$sample_ID} = $input_ref->{$sample_ID};
+        $ISA{$sample_ID} = $input_ref->{$sample_ID};
     }
 
     # VALIDATION
     foreach my $sample_ID (keys %ISA) {
-	my $row = $ISA{$sample_ID};
+        my $row = $ISA{$sample_ID};
 
-	if ($row->{trap_number} && $row->{trap_number} > 1) {
-	    die "trap_number values greater than 1 not yet handled in ISA-Tab/Chado\n";
-	}
+        if ($row->{trap_number} && $row->{trap_number} > 1) {
+            die "trap_number values greater than 1 not yet handled in ISA-Tab/Chado\n";
+        }
 
-	# TO DO: validate trap_type is in $config hash
-	#        validate GPS coords
+        # TO DO: validate trap_type is in $config hash
+        #        validate GPS coords
         #        check collection fields are unique per collection_ID
-	#        check species are in $config->{study_species}
-	#        can check sex, attractant, etc fields too
-	#        ...?
-
+        #        check species are in $config->{study_species}
+        #        can check sex, attractant, etc fields too
+        #        ...?
     }
 
 
     # Report number of rows parsed from the input file
     if ( $verbose ) {
-    	print "// Parsed file      : $file\n";
-    	printf "// No. rows parsed  : %d\n", scalar keys %ISA;
+        print "// Parsed file      : $file\n";
+        printf "// No. rows parsed  : %d\n", scalar keys %ISA;
     }
 }
 
@@ -511,7 +521,7 @@ If you need extra newlines, print them explicitly.
 sub print_table {
     my ($filehandle, $arrayref) = @_;
     foreach my $row (@{$arrayref}) {
-	$csv_formatter->print($filehandle, $row);
+        $csv_formatter->print($filehandle, $row);
     }
 }
 
@@ -529,31 +539,32 @@ sub ontology_triplet_lookup {
     my ($onto, $acc) = ('', '');
 
     if (defined $value && length($value)) {
-	
-	my $term_acc = $lookup->{$value};
+        my $term_acc = $lookup->{$value};
 
-	if ($term_acc) {
-	    ($onto, $acc) = $term_acc =~ (/(\S+?)\:(\S+)/);
-	    if (defined $onto && defined $acc) {
-		return ($value, $onto, $acc);
-	    } elsif ($strict) {
-		die "malformed ontology term accession '$term_acc' in config file\n";
-	    } elsif ($verbose) {
-		warn "malformed ontology term accession '$term_acc' in config file\n";
-	    }
-	} elsif ($strict) {
-	    die "ontology term '$value' not defined in config file\n";
-	} elsif ($verbose) {
-	    warn "ontology term '$value' not defined in config file\n";
-	}
+        if ($term_acc) {
+            ($onto, $acc) = $term_acc =~ (/(\S+?)\:(\S+)/);
+
+            if (defined $onto && defined $acc) {
+                return ($value, $onto, $acc);
+            } elsif ($strict) {
+                die "malformed ontology term accession '$term_acc' in config file\n";
+            } elsif ($verbose) {
+                warn "malformed ontology term accession '$term_acc' in config file\n";
+            }
+        } elsif ($strict) {
+            die "ontology term '$value' not defined in config file\n";
+        } elsif ($verbose) {
+            warn "ontology term '$value' not defined in config file\n";
+        }
     } elsif ($strict) {
-	die "empty value passed to ontology_triplet_lookup()\n";
+        die "empty value passed to ontology_triplet_lookup()\n";
     } elsif ($verbose) {
-	warn "empty value passed to ontology_triplet_lookup()\n";
-	$value = '';
+        warn "empty value passed to ontology_triplet_lookup()\n";
+        $value = '';
     } else {
-	$value = '';
+        $value = '';
     }
+
     return ($value, $onto, $acc);
 }
 
