@@ -486,8 +486,9 @@ sub get_data_from_file {
     foreach my $sample_ID (keys %ISA) {
         my $row = $ISA{$sample_ID};
 
-        if ($row->{trap_number} && $row->{trap_number} > 1) {
-            die "trap_number values greater than 1 not yet handled in ISA-Tab/Chado\n";
+        unless ($row->{collection_start_date} && $row->{collection_end_date} && $row->{trap_duration}) {
+            # should add date format checks too
+            die "collection_start_date, collection_end_date must both be defined and trap_duration must be non-zero for sample '$sample_ID'\n";
         }
 
         # TO DO: validate trap_type is in $config hash
