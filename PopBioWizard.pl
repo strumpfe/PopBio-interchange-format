@@ -304,6 +304,7 @@ if ( $a_collection ) {
         'Sample Name', 'Assay Name', 'Description',
         'Protocol REF', 'Performer', 'Date',
         'Characteristics [Collection duration in days (VBcv:0001009)]',
+        'Characteristics [Number of traps (VBcv:0001122)]',
         'Comment [collection_comment]',
         'Comment [Trap ID]',
         'Characteristics [Attractant (IRO:0000034)]', 'Term Source Ref', 'Term Accession Number',
@@ -343,10 +344,9 @@ if ( $a_collection ) {
             $row->{sample_ID}, $row->{collection_ID}, $row->{collection_description} // '',
             $row->{trap_type},
             '', # blank Performer
-
-            # TO DO: calculate difference between start and end dates?
-            $row->{collection_start_date},
+            $row->{collection_start_date} eq $row->{collection_end_date} ? $row->{collection_end_date} : "$row->{collection_start_date}/$row->{collection_end_date}",
             $row->{trap_duration} // '',
+            $row->{trap_number} // '',
             $row->{collection_comment} // '',
             $row->{trap_ID} // '',
             ontology_triplet_lookup($row->{attractant}, $config->{study_terms}, 'relaxed'),
